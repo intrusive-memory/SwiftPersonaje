@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: draft
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # SwiftPersonaje — Requirements
@@ -208,6 +208,14 @@ their names.
 | Personaje `tools/` | Retired when every command here passes acceptance on Granville and the mr-mr-charles run. |
 
 ## 9. Acceptance
+
+This repository is public (Swift* packages are public by convention; the
+apps are private), and podcast-granville and podcast-mr-mr-charles are
+private. Nothing from them is copied in: unit tests use synthetic
+characters (SwiftDossier SD-4), and items 1 and 4 run through
+`make acceptance PROJECT=<path>` against a local checkout, skipping when it
+is absent, never in CI. The parity expectations for item 1 are read from the
+checkout's sidecars at run time, not stored here.
 
 1. **Granville parity.** With `prompts.identity` set from each character's
    view sidecar, `personaje view HUNTER front --dry-run` (and every other

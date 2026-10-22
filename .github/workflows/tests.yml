@@ -1,0 +1,46 @@
+name: Tests
+
+# Every step runs a `make` target, so the scheme, destination, arch pins and
+# xcodebuild flags are defined once, in the Makefile, and a local run and this
+# gate cannot diverge.
+#
+# Tests use synthetic screenplays only (REQUIREMENTS §9). Acceptance runs
+# against private productions are local-only and never run here.
+
+on:
+  pull_request:
+    branches: [main, development]
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-macos:
+    # Branch-protection context: renaming the job drops the gate.
+    name: Test on macOS
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      # Package.resolved is gitignored; resolve fresh every run.
+      - name: Resolve package dependencies
+        run: make resolve
+
+      - name: Test
+        run: make test
+
+      # Proves the shipped binary links and runs, not just the library code.
+      - name: Build and smoke test the release binary
+        run: |
+          make release
+          ./bin/personaje --version
+          ./bin/personaje cast-discover --help

@@ -16,7 +16,9 @@ public struct PersonajeCommand: AsyncParsableCommand {
       above the working directory holding PROJECT.md) and --json.
       """,
     version: PersonajeVersion.current,
-    subcommands: []
+    subcommands: [
+      CastDiscoverCommand.self
+    ]
   )
 
   public init() {}

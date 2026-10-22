@@ -12,10 +12,8 @@ import PackageDescription
 // through SwiftCompartido; PROJECT.md is read through SwiftProyecto (Q3: its
 // library target links no LLM layer).
 //
-// The org's `sibling()` local-checkout helper is deliberately absent for now:
-// SwiftReparto has to be pinned to a branch until 0.2.0 ships, and a local
-// `../SwiftReparto` checkout on `development` would not carry it. Restore the
-// sibling pattern when the branch pin goes.
+// Dependencies are remote-only. SwiftReparto 0.2.0 carries `canonicalName`,
+// which the discovery writer needs (RP-P9).
 
 let package = Package(
   name: "SwiftPersonaje",
@@ -34,10 +32,9 @@ let package = Package(
     ),
   ],
   dependencies: [
-    // TODO: pin .upToNextMajor(from: "0.2.0") once released
     .package(
       url: "https://github.com/intrusive-memory/SwiftReparto.git",
-      branch: "requirements/personaje"),
+      .upToNextMajor(from: "0.2.0")),
     .package(
       url: "https://github.com/intrusive-memory/SwiftCompartido.git",
       .upToNextMajor(from: "7.4.0")),

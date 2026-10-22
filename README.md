@@ -14,9 +14,7 @@ Each `personaje` command produces one file in a character's `.dossier` bundle an
 > CAST.md discovery writer ([REQUIREMENTS.md](REQUIREMENTS.md) §7.1). The
 > rest is requirements only.
 >
-> SwiftReparto is temporarily pinned to its `requirements/personaje` branch
-> for `canonicalName`; it moves to `0.2.0` when that is released, and nothing
-> here is released before then.
+> Requires SwiftReparto 0.2.0 (`canonicalName`).
 
 ## `personaje cast-discover`
 

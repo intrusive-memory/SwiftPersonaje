@@ -244,10 +244,8 @@ cast-discover`:
   sorts after it. That rule gives the same roster whatever order names
   arrive in; existing members never move. A run that adds nothing writes
   nothing, so an existing CAST.md keeps its bytes.
-- **Temporary pin:** SwiftReparto is pinned to its `requirements/personaje`
-  branch until 0.2.0 (`canonicalName`) is released; then
-  `.upToNextMajor(from: "0.2.0")`. SwiftPersonaje can't be released
-  while that branch pin stands.
+- **Dependency:** SwiftReparto `.upToNextMajor(from: "0.2.0")`
+  (`canonicalName`, released 2026-10-22).
 
 ## 8. Changes elsewhere
 

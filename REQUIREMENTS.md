@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: draft
-updated: 2026-10-20
+updated: 2026-10-22
 ---
 
 # SwiftPersonaje — Requirements
@@ -27,8 +27,9 @@ says which command runs each step and what it checks.
 ## 1. Where it sits
 
 ```
-personaje (CLI) ─► SwiftPersonaje ─┬─► SwiftDossier (Dossier)   bundle, manifest, face crop, page
-                                   ├─► SwiftReparto              CAST.md (through SwiftDossier for writes)
+personaje (CLI) ─► SwiftPersonaje ─┬─► SwiftDossier (Dossier)   bundle, manifest, face crop, page; CAST.md role/manifest
+Personaje (app) ──┘                ├─► SwiftReparto              CAST.md: every other write (parse → mutate → write)
+                                   ├─► SwiftCompartido           screenplays: discovery (§7.1), evidence (§7)
                                    └─► PROJECT.md reader         the personaje: block (Q3)
                  runs, as subprocesses, the signed binaries:
                    vinetas (images)   echada (voice design)   diga (speech)
@@ -36,7 +37,7 @@ personaje (CLI) ─► SwiftPersonaje ─┬─► SwiftDossier (Dossier)   bund
 
 | # | Decision |
 |---|----------|
-| SP-1 | **SwiftPersonaje generates; SwiftDossier records.** Every write to a bundle or its manifest goes through SwiftDossier's `Dossier` API. SwiftPersonaje never writes `manifest.json` or `CAST.md` itself. |
+| SP-1 | **SwiftPersonaje generates; SwiftDossier and SwiftReparto record.** Every write to a bundle or its manifest goes through SwiftDossier's `Dossier` API. SwiftPersonaje never writes `manifest.json` or `CAST.md` bytes itself. CAST.md `role` and `manifest` are set by SwiftDossier (`create`, `migrate`; SD-12); every other CAST.md change (members from `cast-import` and discovery, `voicePrompt`, `voices.voxalta` on `--adopt`) goes through SwiftReparto: `parse`, mutate the `CastDocument`, `CastMarkdownParser.write`. Field ownership across packages: SwiftReparto `REQUIREMENTS-personaje.md` "Who writes CAST.md". *Restated 2026-10-22;* it said CAST.md writes went only through SwiftDossier, which `cast-import` never did. |
 | SP-2 | **Generation is by subprocess,** not by linking SwiftVinetas or SwiftEchada. Only the signed, App-Group-entitled builds see the shared models; an unsigned CLI that linked the engines would build and then find no models. Binaries are found by environment variable, then `personaje.tools` in PROJECT.md, then the defaults in §6. Each run records `provenance.tool` `{name, version, binary}` (DOSSIER-FORMAT §6). |
 | SP-3 | **Judgement stays outside the CLI in v1.** Drafting CHARACTER.md, choosing a candidate, writing prompts and answering review questions are done by a person or an agent. The CLI stores what they decide (§4), checks it, and refuses to run a step whose inputs are missing. LLM drafting (Personaje REQUIREMENTS-APP-UI §11) waits on SwiftBruja #48–#50. |
 | SP-4 | **Prompts live in the manifest** (decided 2026-10-19): `prompts.portrait`, `prompts.identity`, `prompts.subject` (DOSSIER-FORMAT §5.5). Every view and expression is rebuilt from them, so any single image can be regenerated alone. |
@@ -57,6 +58,7 @@ the Makefile and `xcodebuild`; never `swift build` / `swift test`.
 | `personaje init --art-style "<style>" [--style-notes "…"] [--view-opening "…"] [--expression-opening "…"] [--backdrop "…"]` | Adds the `personaje:` block to PROJECT.md (§5), `characters/`, `.gitignore` → `<charactersDir>/.generations/`, `.gitattributes` → LFS for `<charactersDir>/**/*.png` and `**/*.vox`. Idempotent; never rewrites keys it didn't add. | PROJECT.md written through SwiftProyecto's `coordinatedWrite(ownedFields:)` (Q3). |
 | `personaje cast-import` | When CAST.md is missing and PROJECT.md has a legacy `cast:` block: SwiftReparto `ProjectCastImporter` → CAST.md. Reports duplicate members (mr-mr-charles has two `LAWYER`s) and stops on them. | **Never edits PROJECT.md** (Reparto D-13). It prints the `cast:` lines for the user to remove. |
 | `personaje status ["NAME"]` | Without a name: every member, tier, completeness and next step. With one: each dossier file, present or missing, stale or not, the gates (§3), and the exact next command. | Read-only. The command an agent runs first and after every step. |
+| `personaje cast-discover [--project <dir>] [--dry-run] [--json]` | Builds or extends CAST.md from the screenplays PROJECT.md lists (§7.1). Adds members; never changes or removes one. `--dry-run` prints the members it would add. | **Implemented** (2026-10-22). Replaces `echada generate cast` (SwiftEchada EC-P11). Stops when PROJECT.md still has a legacy `cast:` block and there is no CAST.md (that is `cast-import`'s). |
 | `personaje verify` | SwiftDossier `validate(cast:)` for the whole project. | Read-only. |
 | `personaje cast-page` | Writes `<charactersDir>/cast.html`: a card per member with a dossier. | Port of `tools/cast_list.py`; honours `charactersDir`. |
 
@@ -182,7 +184,7 @@ the project default (APP-UI Q10), never blocking.
 | Tool | Default | Used by | Notes |
 |------|---------|---------|-------|
 | `vinetas` | `vinetas-cli` skill launcher → `/Applications/Vinetas.app/Contents/MacOS/VinetasCLI` | portrait, refine, view, expression | Sandboxed: writes only to the App Group. Output goes to `<group>/vinetas-out/<NAME>/` and is moved to `.generations/` as soon as it finishes; reference images are staged there first as `ref-portrait.png` / `ref-face.png`. Each render: 3.5–5 min. |
-| `echada` | `~/Projects/package-collection/pkg/SwiftEchada/bin/echada` | audition, voice | `echada voice … --tts-model 1.7b`, stdin closed. `cast` is never run (it rewrites CAST.md, even `--dry-run`). |
+| `echada` | `~/Projects/package-collection/pkg/SwiftEchada/bin/echada` | audition, voice | `echada voice … --tts-model 1.7b`, stdin closed. `echada voice` writes only its `--output` `.vox` and never touches CAST.md, so `personaje voice` records `voicePrompt` and `voices.voxalta` itself, through SwiftReparto. **`echada cast` and `echada generate vox` are never run:** both rewrite CAST.md (`cast` even with `--dry-run`), and until SwiftEchada ships EC-23 both write `voices/<NAME>.vox` and repoint `voices.voxalta` there, leaving the dossier's `voice/<NAME>.vox` unreferenced (`CastVoiceGenerator.swift:331`, `:537`). *Widened 2026-10-22 from `cast` only.* |
 | `diga` | `~/Projects/package-collection/pkg/SwiftVoxAlta/bin/diga` | samples | Refuses to overwrite an existing diga voice of the same name without `--allow-replace`. `--instruct` on a cloned voice is unverified; recorded as such. |
 
 Timeouts are per call (images 15 min, voice 15 min). A failed subprocess
@@ -196,6 +198,54 @@ fixes: a `filePattern` given as a comma-separated glob string means "every
 `personaje.evidenceExclude` are honoured. When SwiftCompartido's character
 query ships (APP-UI §11.6), `evidence` switches to it; the output files keep
 their names.
+
+### 7.1 CAST.md from the screenplays (the discovery writer)
+
+*Moved here 2026-10-22* from SwiftReparto `REQUIREMENTS-personaje.md`
+Part 2 (decided as Personaje OQ-4); the IDs are kept for traceability.
+SwiftReparto can't host it: reading SwiftCompartido would put SwiftData,
+SwiftUI and the rest in every CAST.md reader's graph and break Reparto's
+leaf rule (RQ-INV-1). This library links both. The writer is a library
+API; `personaje cast-discover` (§2) and the Personaje app's review screen
+(APP-UI §11.1) both call it.
+
+It calls SwiftCompartido's `DocumentModelActor.extractAllCharacters()`
+(CP-P2, shipped in 7.3.0), maps each character to a `CastMember` through
+`CastMember.canonicalName(_:)`, merges with `[CastMember].merging(_:)`, and
+writes with `CastMarkdownParser.write`.
+
+| ID | Requirement |
+|----|-------------|
+| RP-P9 | Read SwiftCompartido's character collection (CP-P2) and turn each character into a `CastMember`, with the name passed through `canonicalName` (Reparto RQ-22). CP-P2 names arrive already uppercased and cut at the first `(` (Compartido `cleanCharacterName`); `canonicalName` is idempotent on them. |
+| RP-P10 | Merge the discovered members into the current CAST.md with `[CastMember].merging(_:)`: add new members, fill only nil fields, never overwrite or remove what a person wrote. Duplicates are members with the same canonical name. |
+| RP-P11 | Works on a store holding one screenplay (a series built by repeated merges) or every episode at once; both give the same CAST.md. CP-P2's `characters` is a dictionary, so the writer sorts discovered members deterministically before merging. |
+| RP-P12 | Available from the `personaje` CLI and the Personaje app, both through this library. There is no `reparto` command for it. |
+| RP-P13 | Counts (lines, scenes) are **not** written to CAST.md. They are read from SwiftCompartido for tier suggestions (`evidence`, §7; APP-UI UD19). |
+| RP-P14 | Two different names for one person are not merged. That's a review step: the app's list (APP-UI §11.1), or by hand after `--dry-run`. |
+
+Depends on SwiftCompartido ≥ 7.3.0 and SwiftReparto 0.2.0 (`canonicalName`,
+hard). The writer sets only `character`; `role` and `manifest` come later
+from `new` through SwiftDossier.
+
+**Status: implemented 2026-10-22** as `CastDiscovery` in the library
+(`Sources/SwiftPersonaje/CastDiscovery.swift`), behind `personaje
+cast-discover`:
+
+- `CastDiscovery.discover(screenplays:castFile:dryRun:)` loads the files
+  into an in-memory SwiftCompartido store (the "every episode at once"
+  path); `discover(from:castFile:dryRun:)` takes a
+  `CharacterCollectionResult` from a store the caller already has (the
+  app). Both return a `CastDiscovery.Report`.
+- `discoveredMembers(from:)` is RP-P9; names `canonicalName` refuses are
+  reported in `rejected`, never rewritten.
+- `merge(_:into:)` is RP-P10/P11. `merging(_:)` appends new members at
+  the end, which makes the result depend on episode order, so each new
+  member is moved to just before the first member whose canonical name
+  sorts after it. That rule gives the same roster whatever order names
+  arrive in; existing members never move. A run that adds nothing writes
+  nothing, so an existing CAST.md keeps its bytes.
+- **Dependency:** SwiftReparto `.upToNextMajor(from: "0.2.0")`
+  (`canonicalName`, released 2026-10-22).
 
 ## 8. Changes elsewhere
 
@@ -241,7 +291,7 @@ checkout's sidecars at run time, not stored here.
 |---|----------|----------------|
 | Q1 | **Reference standard for women.** The shirtless rule (§3.2) is written for men; JOANN is clothed. | Ask. A neutral option is bare shoulders (strapless/tube top), same pose. |
 | Q2 | Should views and expressions go through candidates (several seeds, choose) or straight in, as the pilot did? | Straight in, one seed: the pilot's 42 renders were all usable. `--seeds a,b` switches to candidates + `select`. |
-| Q3 | **Reading and writing PROJECT.md.** SwiftProyecto owns it but still carries an LLM layer. | Use SwiftProyecto if `ProjectMarkdownParser` links without the LLM layer; otherwise read the `personaje:` key with Yams and write only through `coordinatedWrite`. Check before Phase 1. |
+| Q3 | **Reading and writing PROJECT.md.** SwiftProyecto owns it but still carries an LLM layer. | *Reading answered 2026-10-22:* SwiftProyecto 5.3.2's library target links no LLM layer (only its `proyecto` executable uses Foundation Models), so the library reads PROJECT.md through `ProjectMarkdownParser`. Writing (`init`) still to check against `coordinatedWrite`. |
 | Q4 | Voice placement: SwiftEchada EC-23 (voices written into the bundle) hasn't shipped. | `voice` copies the `.vox` in through SwiftDossier `add`; switch to `refresh` when EC-23 ships. |
 | Q5 | Does `personaje` call SwiftDossier as a library (yes) and also expose the `dossier` commands (`select`, `render`)? | Yes, as thin wrappers taking a character name, so an agent needs one CLI. |
 | Q6 | Mid-century modern illustration on Klein 4B is untested; illustration styles drift on detail. | Run the mr-mr-charles portrait rounds first and judge before views. |
@@ -251,7 +301,10 @@ checkout's sidecars at run time, not stored here.
 1. **Scaffold + read side:** package, CLI shell, `doctor`, `status`,
    `--project` resolution, PROJECT.md settings, the binary resolver. Needs
    SwiftDossier phase 1.
-2. **Project commands:** `init`, `cast-import`, `verify`.
+   *Done 2026-10-22:* package, CLI shell, `--project` resolution, reading
+   `episodesDir` / `filePattern`. The rest is open.
+2. **Project commands:** `init`, `cast-import`, `verify`. *Done ahead of
+   the rest:* `cast-discover` (§7.1).
 3. **Character text steps:** `new`, `evidence`, `check`, `reviewed`, `prompt`.
 4. **Images:** `portrait`, `refine`, `select`, `face`, `view`, `expression`,
    with `--dry-run` parity tests (acceptance 1).

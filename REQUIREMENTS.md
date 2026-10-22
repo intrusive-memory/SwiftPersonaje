@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: draft
-updated: 2026-10-20
+updated: 2026-10-22
 ---
 
 # SwiftPersonaje — Requirements
@@ -27,8 +27,9 @@ says which command runs each step and what it checks.
 ## 1. Where it sits
 
 ```
-personaje (CLI) ─► SwiftPersonaje ─┬─► SwiftDossier (Dossier)   bundle, manifest, face crop, page
-                                   ├─► SwiftReparto              CAST.md (through SwiftDossier for writes)
+personaje (CLI) ─► SwiftPersonaje ─┬─► SwiftDossier (Dossier)   bundle, manifest, face crop, page; CAST.md role/manifest
+Personaje (app) ──┘                ├─► SwiftReparto              CAST.md: every other write (parse → mutate → write)
+                                   ├─► SwiftCompartido           screenplays: discovery (§7.1), evidence (§7)
                                    └─► PROJECT.md reader         the personaje: block (Q3)
                  runs, as subprocesses, the signed binaries:
                    vinetas (images)   echada (voice design)   diga (speech)
@@ -36,7 +37,7 @@ personaje (CLI) ─► SwiftPersonaje ─┬─► SwiftDossier (Dossier)   bund
 
 | # | Decision |
 |---|----------|
-| SP-1 | **SwiftPersonaje generates; SwiftDossier records.** Every write to a bundle or its manifest goes through SwiftDossier's `Dossier` API. SwiftPersonaje never writes `manifest.json` or `CAST.md` itself. |
+| SP-1 | **SwiftPersonaje generates; SwiftDossier and SwiftReparto record.** Every write to a bundle or its manifest goes through SwiftDossier's `Dossier` API. SwiftPersonaje never writes `manifest.json` or `CAST.md` bytes itself. CAST.md `role` and `manifest` are set by SwiftDossier (`create`, `migrate`; SD-12); every other CAST.md change (members from `cast-import` and discovery, `voicePrompt`, `voices.voxalta` on `--adopt`) goes through SwiftReparto: `parse`, mutate the `CastDocument`, `CastMarkdownParser.write`. Field ownership across packages: SwiftReparto `REQUIREMENTS-personaje.md` "Who writes CAST.md". *Restated 2026-10-22;* it said CAST.md writes went only through SwiftDossier, which `cast-import` never did. |
 | SP-2 | **Generation is by subprocess,** not by linking SwiftVinetas or SwiftEchada. Only the signed, App-Group-entitled builds see the shared models; an unsigned CLI that linked the engines would build and then find no models. Binaries are found by environment variable, then `personaje.tools` in PROJECT.md, then the defaults in §6. Each run records `provenance.tool` `{name, version, binary}` (DOSSIER-FORMAT §6). |
 | SP-3 | **Judgement stays outside the CLI in v1.** Drafting CHARACTER.md, choosing a candidate, writing prompts and answering review questions are done by a person or an agent. The CLI stores what they decide (§4), checks it, and refuses to run a step whose inputs are missing. LLM drafting (Personaje REQUIREMENTS-APP-UI §11) waits on SwiftBruja #48–#50. |
 | SP-4 | **Prompts live in the manifest** (decided 2026-10-19): `prompts.portrait`, `prompts.identity`, `prompts.subject` (DOSSIER-FORMAT §5.5). Every view and expression is rebuilt from them, so any single image can be regenerated alone. |
@@ -57,6 +58,7 @@ the Makefile and `xcodebuild`; never `swift build` / `swift test`.
 | `personaje init --art-style "<style>" [--style-notes "…"] [--view-opening "…"] [--expression-opening "…"] [--backdrop "…"]` | Adds the `personaje:` block to PROJECT.md (§5), `characters/`, `.gitignore` → `<charactersDir>/.generations/`, `.gitattributes` → LFS for `<charactersDir>/**/*.png` and `**/*.vox`. Idempotent; never rewrites keys it didn't add. | PROJECT.md written through SwiftProyecto's `coordinatedWrite(ownedFields:)` (Q3). |
 | `personaje cast-import` | When CAST.md is missing and PROJECT.md has a legacy `cast:` block: SwiftReparto `ProjectCastImporter` → CAST.md. Reports duplicate members (mr-mr-charles has two `LAWYER`s) and stops on them. | **Never edits PROJECT.md** (Reparto D-13). It prints the `cast:` lines for the user to remove. |
 | `personaje status ["NAME"]` | Without a name: every member, tier, completeness and next step. With one: each dossier file, present or missing, stale or not, the gates (§3), and the exact next command. | Read-only. The command an agent runs first and after every step. |
+| `personaje cast-discover [--dry-run]` | Builds or extends CAST.md from the screenplays PROJECT.md lists (§7.1). Adds members; never changes or removes one. `--dry-run` prints the members it would add. | Proposed name. Replaces `echada generate cast` (SwiftEchada EC-P11). |
 | `personaje verify` | SwiftDossier `validate(cast:)` for the whole project. | Read-only. |
 | `personaje cast-page` | Writes `<charactersDir>/cast.html`: a card per member with a dossier. | Port of `tools/cast_list.py`; honours `charactersDir`. |
 
@@ -196,6 +198,34 @@ fixes: a `filePattern` given as a comma-separated glob string means "every
 `personaje.evidenceExclude` are honoured. When SwiftCompartido's character
 query ships (APP-UI §11.6), `evidence` switches to it; the output files keep
 their names.
+
+### 7.1 CAST.md from the screenplays (the discovery writer)
+
+*Moved here 2026-10-22* from SwiftReparto `REQUIREMENTS-personaje.md`
+Part 2 (decided as Personaje OQ-4); the IDs are kept for traceability.
+SwiftReparto can't host it: reading SwiftCompartido would put SwiftData,
+SwiftUI and the rest in every CAST.md reader's graph and break Reparto's
+leaf rule (RQ-INV-1). This library links both. The writer is a library
+API; `personaje cast-discover` (§2) and the Personaje app's review screen
+(APP-UI §11.1) both call it.
+
+It calls SwiftCompartido's `DocumentModelActor.extractAllCharacters()`
+(CP-P2, shipped in 7.3.0), maps each character to a `CastMember` through
+`CastMember.canonicalName(_:)`, merges with `[CastMember].merging(_:)`, and
+writes with `CastMarkdownParser.write`.
+
+| ID | Requirement |
+|----|-------------|
+| RP-P9 | Read SwiftCompartido's character collection (CP-P2) and turn each character into a `CastMember`, with the name passed through `canonicalName` (Reparto RQ-22). CP-P2 names arrive already uppercased and cut at the first `(` (Compartido `cleanCharacterName`); `canonicalName` is idempotent on them. |
+| RP-P10 | Merge the discovered members into the current CAST.md with `[CastMember].merging(_:)`: add new members, fill only nil fields, never overwrite or remove what a person wrote. Duplicates are members with the same canonical name. |
+| RP-P11 | Works on a store holding one screenplay (a series built by repeated merges) or every episode at once; both give the same CAST.md. CP-P2's `characters` is a dictionary, so the writer sorts discovered members deterministically before merging. |
+| RP-P12 | Available from the `personaje` CLI and the Personaje app, both through this library. There is no `reparto` command for it. |
+| RP-P13 | Counts (lines, scenes) are **not** written to CAST.md. They are read from SwiftCompartido for tier suggestions (`evidence`, §7; APP-UI UD19). |
+| RP-P14 | Two different names for one person are not merged. That's a review step: the app's list (APP-UI §11.1), or by hand after `--dry-run`. |
+
+Depends on SwiftCompartido ≥ 7.3.0 and SwiftReparto 0.2.0 (`canonicalName`,
+hard). The writer sets only `character`; `role` and `manifest` come later
+from `new` through SwiftDossier.
 
 ## 8. Changes elsewhere
 

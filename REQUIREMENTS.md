@@ -184,7 +184,7 @@ the project default (APP-UI Q10), never blocking.
 | Tool | Default | Used by | Notes |
 |------|---------|---------|-------|
 | `vinetas` | `vinetas-cli` skill launcher → `/Applications/Vinetas.app/Contents/MacOS/VinetasCLI` | portrait, refine, view, expression | Sandboxed: writes only to the App Group. Output goes to `<group>/vinetas-out/<NAME>/` and is moved to `.generations/` as soon as it finishes; reference images are staged there first as `ref-portrait.png` / `ref-face.png`. Each render: 3.5–5 min. |
-| `echada` | `~/Projects/package-collection/pkg/SwiftEchada/bin/echada` | audition, voice | `echada voice … --tts-model 1.7b`, stdin closed. `cast` is never run (it rewrites CAST.md, even `--dry-run`). |
+| `echada` | `~/Projects/package-collection/pkg/SwiftEchada/bin/echada` | audition, voice | `echada voice … --tts-model 1.7b`, stdin closed. `echada voice` writes only its `--output` `.vox` and never touches CAST.md, so `personaje voice` records `voicePrompt` and `voices.voxalta` itself, through SwiftReparto. **`echada cast` and `echada generate vox` are never run:** both rewrite CAST.md (`cast` even with `--dry-run`), and until SwiftEchada ships EC-23 both write `voices/<NAME>.vox` and repoint `voices.voxalta` there, leaving the dossier's `voice/<NAME>.vox` unreferenced (`CastVoiceGenerator.swift:331`, `:537`). *Widened 2026-10-22 from `cast` only.* |
 | `diga` | `~/Projects/package-collection/pkg/SwiftVoxAlta/bin/diga` | samples | Refuses to overwrite an existing diga voice of the same name without `--allow-replace`. `--instruct` on a cloned voice is unverified; recorded as such. |
 
 Timeouts are per call (images 15 min, voice 15 min). A failed subprocess

@@ -1,7 +1,7 @@
 ---
 type: doc
 title: SwiftPersonaje — Agent Instructions
-updated: 2026-10-19
+updated: 2026-10-22
 ---
 
 # AGENTS.md
@@ -21,5 +21,10 @@ One command per step from a name in the screenplay to a finished .dossier charac
 - **Builds and tests** go through the Makefile and `xcodebuild` (XcodeBuildMCP
   locally). Never `swift build` or `swift test`.
 - macOS 26, Swift 6.2, strict concurrency. intrusive-memory dependencies use
-  the sibling pattern on `development`.
+  the sibling pattern on `development`. *Exception for now:* SwiftReparto is
+  pinned to its `requirements/personaje` branch until 0.2.0 ships, so
+  `Package.swift` has no `sibling()` helper yet. Restore it, and pin
+  `.upToNextMajor(from: "0.2.0")`, when that release is out.
+- **Tests use synthetic screenplays only.** This repo is public; never copy
+  content from the private podcast repos (REQUIREMENTS §9).
 - Work on `development`; `main` takes releases.

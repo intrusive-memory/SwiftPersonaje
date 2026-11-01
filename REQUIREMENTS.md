@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: draft
-updated: 2026-10-22
+updated: 2026-11-01
 ---
 
 # SwiftPersonaje — Requirements
@@ -55,7 +55,7 @@ the Makefile and `xcodebuild`; never `swift build` / `swift test`.
 | Command | Does | Notes |
 |---------|------|-------|
 | `personaje doctor` | Checks the signed binaries exist and print a version; `vinetas list --json` has Klein 4B; the Qwen3-TTS models are present; `.venv`-free. | Runbook §0. Read-only. |
-| `personaje init --art-style "<style>" [--style-notes "…"] [--view-opening "…"] [--expression-opening "…"] [--backdrop "…"]` | Adds the `personaje:` block to PROJECT.md (§5), `characters/`, `.gitignore` → `<charactersDir>/.generations/`, `.gitattributes` → LFS for `<charactersDir>/**/*.png` and `**/*.vox`. Idempotent; never rewrites keys it didn't add. | PROJECT.md written through SwiftProyecto's `coordinatedWrite(ownedFields:)` (Q3). |
+| `personaje init --art-style "<style>" [--style-notes "…"] [--view-opening "…"] [--expression-opening "…"] [--backdrop "…"]` | Adds the `personaje:` block to PROJECT.md (§5), `characters/`, `.gitignore` → `<charactersDir>/.generations/`, `.gitattributes` → LFS for `<charactersDir>/**/*.png` and `**/*.vox`. Also `.gitignore` → `<charactersDir>/*.dossier/.update-*`. Idempotent; never rewrites keys it didn't add. | PROJECT.md written through SwiftProyecto's `coordinatedWrite(ownedFields:)` (Q3). |
 | `personaje cast-import` | When CAST.md is missing and PROJECT.md has a legacy `cast:` block: SwiftReparto `ProjectCastImporter` → CAST.md. Reports duplicate members (mr-mr-charles has two `LAWYER`s) and stops on them. | **Never edits PROJECT.md** (Reparto D-13). It prints the `cast:` lines for the user to remove. |
 | `personaje status ["NAME"]` | Without a name: every member, tier, completeness and next step. With one: each dossier file, present or missing, stale or not, the gates (§3), and the exact next command. | Read-only. The command an agent runs first and after every step. |
 | `personaje cast-discover [--project <dir>] [--dry-run] [--json]` | Builds or extends CAST.md from the screenplays PROJECT.md lists (§7.1). Adds members; never changes or removes one. `--dry-run` prints the members it would add. | **Implemented** (2026-10-22). Replaces `echada generate cast` (SwiftEchada EC-P11). Stops when PROJECT.md still has a legacy `cast:` block and there is no CAST.md (that is `cast-import`'s). |
@@ -252,7 +252,8 @@ cast-discover`:
 | Where | Change |
 |-------|--------|
 | SwiftDossier | Needs: `add --sidecar` provenance folding with references and roles (SD-7), `prompt`, `check`, `candidates`. |
-| dossier-format | Nothing outstanding: `prompts`, `provenance.tool`, `copiedFrom`, `references[].role` are in v2 (2026-10-19). |
+| dossier-format | Nothing outstanding: `prompts`, `provenance.tool`, `copiedFrom`, `references[].role` are in v2 (2026-10-19). Update markers are in rc.4 (2026-11-01). |
+| SwiftDossier | Needs: `withUpdate` (SD-14). Every character command that changes a bundle runs inside it, labelled with its step, so Escribir and Vinetas show the update. `vinetas`, `echada` and `diga` need no change: the command that calls them holds the marker. |
 | Personaje RUNBOOK | Rewritten as `personaje` commands, step for step; the Python snippets go to an appendix until retired. Fix now, before the Swift tools exist: `C=$P/characters/$NAME.dossier`; `CAST=`/`PROJ=` on every `make` call; `$(PY)` → `.venv/bin/python`; document `voice-adopt`, the refine round, `styleNotes`, the fast track. |
 | Personaje CHARACTER_CREATION | §4.1 reference-portrait standard (§3.2); Steps 5–6 from the 2026-10-05 pilot (three views, one seed, back view on the portrait only). |
 | Personaje `tools/` | Retired when every command here passes acceptance on Granville and the mr-mr-charles run. |

@@ -2,7 +2,7 @@ import ArgumentParser
 
 /// The current `personaje` version.
 public enum PersonajeVersion {
-  public static let current = "0.1.0"
+  public static let current = "0.1.0-dev"
 }
 
 /// `personaje`: one command per step from a name in the screenplay to a

@@ -35,7 +35,7 @@ let package = Package(
     .package(url: "https://github.com/intrusive-memory/SwiftReparto.git", .upToNextMajor(from: "0.2.1")),
     .package(url: "https://github.com/intrusive-memory/SwiftCompartido.git", .upToNextMajor(from: "7.4.0")),
     .package(url: "https://github.com/intrusive-memory/SwiftProyecto.git", .upToNextMajor(from: "5.4.0")),
-    .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),
+    .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.8.2")),
   ],
   targets: [
     .target(

@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: draft
-updated: 2026-11-01
+updated: 2026-11-07
 ---
 
 # SwiftPersonaje — Requirements
@@ -217,15 +217,16 @@ writes with `CastMarkdownParser.write`.
 | ID | Requirement |
 |----|-------------|
 | RP-P9 | Read SwiftCompartido's character collection (CP-P2) and turn each character into a `CastMember`, with the name passed through `canonicalName` (Reparto RQ-22). CP-P2 names arrive already uppercased and cut at the first `(` (Compartido `cleanCharacterName`); `canonicalName` is idempotent on them. |
-| RP-P10 | Merge the discovered members into the current CAST.md with `[CastMember].merging(_:)`: add new members, fill only nil fields, never overwrite or remove what a person wrote. Duplicates are members with the same canonical name. |
+| RP-P10 | Merge the discovered members into the current CAST.md with `[CastMember].merging(_:)`: add new members, fill only nil fields, never overwrite or remove what a person wrote. Duplicates are members with the same canonical name. *Changed 2026-11-07:* except `lineCount`. Discovery sets each discovered member's `lineCount` to its SwiftCompartido `extractAllCharacters()` `lineCount` (lines spoken across all the episodes) on every run, new and existing members alike, **replacing the old value**, so a rebuild refreshes it. `lineCount` is derived and never hand-edited; a member discovery doesn't find keeps whatever it had, and one added by hand has none ("not counted yet"). Depends on SwiftReparto 0.3.0, which declares the field and makes `merging(_:)` replace it (Reparto RQ-26, RP-P17). |
 | RP-P11 | Works on a store holding one screenplay (a series built by repeated merges) or every episode at once; both give the same CAST.md. CP-P2's `characters` is a dictionary, so the writer sorts discovered members deterministically before merging. |
 | RP-P12 | Available from the `personaje` CLI and the Personaje app, both through this library. There is no `reparto` command for it. |
-| RP-P13 | Counts (lines, scenes) are **not** written to CAST.md. They are read from SwiftCompartido for tier suggestions (`evidence`, §7; APP-UI UD19). |
+| RP-P13 | Counts (lines, scenes) are **not** written to CAST.md. They are read from SwiftCompartido for tier suggestions (`evidence`, §7; APP-UI UD19). *Changed 2026-11-07:* the line count is written, as `lineCount` (RP-P10). Scene counts still are not. |
 | RP-P14 | Two different names for one person are not merged. That's a review step: the app's list (APP-UI §11.1), or by hand after `--dry-run`. |
 
 Depends on SwiftCompartido ≥ 7.3.0 and SwiftReparto 0.2.0 (`canonicalName`,
 hard). The writer sets only `character`; `role` and `manifest` come later
-from `new` through SwiftDossier.
+from `new` through SwiftDossier. *Changed 2026-11-07:* it also sets
+`lineCount` (RP-P10), which needs SwiftReparto 0.3.0 (hard for that field).
 
 **Status: implemented 2026-10-22** as `CastDiscovery` in the library
 (`Sources/SwiftPersonaje/CastDiscovery.swift`), behind `personaje
@@ -243,7 +244,9 @@ cast-discover`:
   member is moved to just before the first member whose canonical name
   sorts after it. That rule gives the same roster whatever order names
   arrive in; existing members never move. A run that adds nothing writes
-  nothing, so an existing CAST.md keeps its bytes.
+  nothing, so an existing CAST.md keeps its bytes. *Changed 2026-11-07,
+  not yet implemented:* a run that adds nothing but changes a `lineCount`
+  writes; a run where no member and no count changes still writes nothing.
 - **Dependency:** SwiftReparto `.upToNextMajor(from: "0.2.0")`
   (`canonicalName`, released 2026-10-22).
 

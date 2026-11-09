@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: draft
-updated: 2026-10-22
+updated: 2026-11-07
 ---
 
 # SwiftPersonaje — Requirements
@@ -55,10 +55,10 @@ the Makefile and `xcodebuild`; never `swift build` / `swift test`.
 | Command | Does | Notes |
 |---------|------|-------|
 | `personaje doctor` | Checks the signed binaries exist and print a version; `vinetas list --json` has Klein 4B; the Qwen3-TTS models are present; `.venv`-free. | Runbook §0. Read-only. |
-| `personaje init --art-style "<style>" [--style-notes "…"] [--view-opening "…"] [--expression-opening "…"] [--backdrop "…"]` | Adds the `personaje:` block to PROJECT.md (§5), `characters/`, `.gitignore` → `<charactersDir>/.generations/`, `.gitattributes` → LFS for `<charactersDir>/**/*.png` and `**/*.vox`. Idempotent; never rewrites keys it didn't add. | PROJECT.md written through SwiftProyecto's `coordinatedWrite(ownedFields:)` (Q3). |
+| `personaje init --art-style "<style>" [--style-notes "…"] [--view-opening "…"] [--expression-opening "…"] [--backdrop "…"]` | Adds the `personaje:` block to PROJECT.md (§5), `characters/`, `.gitignore` → `<charactersDir>/.generations/`, `.gitattributes` → LFS for `<charactersDir>/**/*.png` and `**/*.vox`. Also `.gitignore` → `<charactersDir>/*.dossier/.update-*`. Idempotent; never rewrites keys it didn't add. | PROJECT.md written through SwiftProyecto's `coordinatedWrite(ownedFields:)` (Q3). |
 | `personaje cast-import` | When CAST.md is missing and PROJECT.md has a legacy `cast:` block: SwiftReparto `ProjectCastImporter` → CAST.md. Reports duplicate members (mr-mr-charles has two `LAWYER`s) and stops on them. | **Never edits PROJECT.md** (Reparto D-13). It prints the `cast:` lines for the user to remove. |
 | `personaje status ["NAME"]` | Without a name: every member, tier, completeness and next step. With one: each dossier file, present or missing, stale or not, the gates (§3), and the exact next command. | Read-only. The command an agent runs first and after every step. |
-| `personaje cast-discover [--project <dir>] [--dry-run] [--json]` | Builds or extends CAST.md from the screenplays PROJECT.md lists (§7.1). Adds members; never changes or removes one. `--dry-run` prints the members it would add. | **Implemented** (2026-10-22). Replaces `echada generate cast` (SwiftEchada EC-P11). Stops when PROJECT.md still has a legacy `cast:` block and there is no CAST.md (that is `cast-import`'s). |
+| `personaje cast-discover [--project <dir>] [--dry-run] [--json]` | Builds or extends CAST.md from the screenplays PROJECT.md lists (§7.1). Adds members; never changes or removes one. `--dry-run` prints the members it would add. | **Implemented** (2026-10-22). Replaces `echada generate cast` (SwiftEchada EC-P11). Stops when PROJECT.md still has a legacy `cast:` block and there is no CAST.md (that is `cast-import`'s). *Changed 2026-11-07:* **the Personaje app is the only builder of CAST.md** (Personaje APP-UI UD21; SwiftReparto RQ-27). `cast-discover` becomes report-only: it always behaves as `--dry-run` and never writes CAST.md. The library's discovery writer stays, called by the app. Not yet implemented. |
 | `personaje verify` | SwiftDossier `validate(cast:)` for the whole project. | Read-only. |
 | `personaje cast-page` | Writes `<charactersDir>/cast.html`: a card per member with a dossier. | Port of `tools/cast_list.py`; honours `charactersDir`. |
 
@@ -217,15 +217,16 @@ writes with `CastMarkdownParser.write`.
 | ID | Requirement |
 |----|-------------|
 | RP-P9 | Read SwiftCompartido's character collection (CP-P2) and turn each character into a `CastMember`, with the name passed through `canonicalName` (Reparto RQ-22). CP-P2 names arrive already uppercased and cut at the first `(` (Compartido `cleanCharacterName`); `canonicalName` is idempotent on them. |
-| RP-P10 | Merge the discovered members into the current CAST.md with `[CastMember].merging(_:)`: add new members, fill only nil fields, never overwrite or remove what a person wrote. Duplicates are members with the same canonical name. |
+| RP-P10 | Merge the discovered members into the current CAST.md with `[CastMember].merging(_:)`: add new members, fill only nil fields, never overwrite or remove what a person wrote. Duplicates are members with the same canonical name. *Changed 2026-11-07:* except `lineCount`. Discovery sets each discovered member's `lineCount` to its SwiftCompartido `extractAllCharacters()` `lineCount` (lines spoken across all the episodes) on every run, new and existing members alike, **replacing the old value**, so a rebuild refreshes it. `lineCount` is derived and never hand-edited; a member discovery doesn't find keeps whatever it had, and one added by hand has none ("not counted yet"). Depends on SwiftReparto 0.3.0, which declares the field and makes `merging(_:)` replace it (Reparto RQ-26, RP-P17). |
 | RP-P11 | Works on a store holding one screenplay (a series built by repeated merges) or every episode at once; both give the same CAST.md. CP-P2's `characters` is a dictionary, so the writer sorts discovered members deterministically before merging. |
 | RP-P12 | Available from the `personaje` CLI and the Personaje app, both through this library. There is no `reparto` command for it. |
-| RP-P13 | Counts (lines, scenes) are **not** written to CAST.md. They are read from SwiftCompartido for tier suggestions (`evidence`, §7; APP-UI UD19). |
+| RP-P13 | Counts (lines, scenes) are **not** written to CAST.md. They are read from SwiftCompartido for tier suggestions (`evidence`, §7; APP-UI UD19). *Changed 2026-11-07:* the line count is written, as `lineCount` (RP-P10). Scene counts still are not. |
 | RP-P14 | Two different names for one person are not merged. That's a review step: the app's list (APP-UI §11.1), or by hand after `--dry-run`. |
 
 Depends on SwiftCompartido ≥ 7.3.0 and SwiftReparto 0.2.0 (`canonicalName`,
 hard). The writer sets only `character`; `role` and `manifest` come later
-from `new` through SwiftDossier.
+from `new` through SwiftDossier. *Changed 2026-11-07:* it also sets
+`lineCount` (RP-P10), which needs SwiftReparto 0.3.0 (hard for that field).
 
 **Status: implemented 2026-10-22** as `CastDiscovery` in the library
 (`Sources/SwiftPersonaje/CastDiscovery.swift`), behind `personaje
@@ -243,7 +244,9 @@ cast-discover`:
   member is moved to just before the first member whose canonical name
   sorts after it. That rule gives the same roster whatever order names
   arrive in; existing members never move. A run that adds nothing writes
-  nothing, so an existing CAST.md keeps its bytes.
+  nothing, so an existing CAST.md keeps its bytes. *Changed 2026-11-07,
+  not yet implemented:* a run that adds nothing but changes a `lineCount`
+  writes; a run where no member and no count changes still writes nothing.
 - **Dependency:** SwiftReparto `.upToNextMajor(from: "0.2.0")`
   (`canonicalName`, released 2026-10-22).
 
@@ -252,7 +255,8 @@ cast-discover`:
 | Where | Change |
 |-------|--------|
 | SwiftDossier | Needs: `add --sidecar` provenance folding with references and roles (SD-7), `prompt`, `check`, `candidates`. |
-| dossier-format | Nothing outstanding: `prompts`, `provenance.tool`, `copiedFrom`, `references[].role` are in v2 (2026-10-19). |
+| dossier-format | Nothing outstanding: `prompts`, `provenance.tool`, `copiedFrom`, `references[].role` are in v2 (2026-10-19). Update markers are in rc.4 (2026-11-01). |
+| SwiftDossier | Needs: `withUpdate` (SD-14). Every character command that changes a bundle runs inside it, labelled with its step, so Escribir and Vinetas show the update. `vinetas`, `echada` and `diga` need no change: the command that calls them holds the marker. |
 | Personaje RUNBOOK | Rewritten as `personaje` commands, step for step; the Python snippets go to an appendix until retired. Fix now, before the Swift tools exist: `C=$P/characters/$NAME.dossier`; `CAST=`/`PROJ=` on every `make` call; `$(PY)` → `.venv/bin/python`; document `voice-adopt`, the refine round, `styleNotes`, the fast track. |
 | Personaje CHARACTER_CREATION | §4.1 reference-portrait standard (§3.2); Steps 5–6 from the 2026-10-05 pilot (three views, one seed, back view on the portrait only). |
 | Personaje `tools/` | Retired when every command here passes acceptance on Granville and the mr-mr-charles run. |

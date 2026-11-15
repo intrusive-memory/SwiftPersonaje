@@ -13,7 +13,8 @@ import PackageDescription
 // library target links no LLM layer).
 //
 // SwiftReparto 0.2.0 carries `canonicalName`, which the discovery writer
-// needs (RP-P9).
+// needs (RP-P9); 0.4.0 carries `CastMember.lineCount`, which `merging(_:)`
+// replaces rather than gap-fills (RP-P10), and `CastDocument.castVersion`.
 
 let package = Package(
   name: "SwiftPersonaje",
@@ -32,7 +33,7 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftReparto.git", .upToNextMajor(from: "0.2.1")),
+    .package(url: "https://github.com/intrusive-memory/SwiftReparto.git", .upToNextMajor(from: "0.4.0")),
     .package(url: "https://github.com/intrusive-memory/SwiftCompartido.git", .upToNextMajor(from: "7.4.0")),
     .package(url: "https://github.com/intrusive-memory/SwiftProyecto.git", .upToNextMajor(from: "5.4.1")),
     .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.8.2")),

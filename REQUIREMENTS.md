@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: draft
-updated: 2026-11-07
+updated: 2026-11-15
 ---
 
 # SwiftPersonaje — Requirements
@@ -58,7 +58,7 @@ the Makefile and `xcodebuild`; never `swift build` / `swift test`.
 | `personaje init --art-style "<style>" [--style-notes "…"] [--view-opening "…"] [--expression-opening "…"] [--backdrop "…"]` | Adds the `personaje:` block to PROJECT.md (§5), `characters/`, `.gitignore` → `<charactersDir>/.generations/`, `.gitattributes` → LFS for `<charactersDir>/**/*.png` and `**/*.vox`. Also `.gitignore` → `<charactersDir>/*.dossier/.update-*`. Idempotent; never rewrites keys it didn't add. | PROJECT.md written through SwiftProyecto's `coordinatedWrite(ownedFields:)` (Q3). |
 | `personaje cast-import` | When CAST.md is missing and PROJECT.md has a legacy `cast:` block: SwiftReparto `ProjectCastImporter` → CAST.md. Reports duplicate members (mr-mr-charles has two `LAWYER`s) and stops on them. | **Never edits PROJECT.md** (Reparto D-13). It prints the `cast:` lines for the user to remove. |
 | `personaje status ["NAME"]` | Without a name: every member, tier, completeness and next step. With one: each dossier file, present or missing, stale or not, the gates (§3), and the exact next command. | Read-only. The command an agent runs first and after every step. |
-| `personaje cast-discover [--project <dir>] [--dry-run] [--json]` | Builds or extends CAST.md from the screenplays PROJECT.md lists (§7.1). Adds members; never changes or removes one. `--dry-run` prints the members it would add. | **Implemented** (2026-10-22). Replaces `echada generate cast` (SwiftEchada EC-P11). Stops when PROJECT.md still has a legacy `cast:` block and there is no CAST.md (that is `cast-import`'s). *Changed 2026-11-07:* **the Personaje app is the only builder of CAST.md** (Personaje APP-UI UD21; SwiftReparto RQ-27). `cast-discover` becomes report-only: it always behaves as `--dry-run` and never writes CAST.md. The library's discovery writer stays, called by the app. Not yet implemented. |
+| `personaje cast-discover [--project <dir>] [--dry-run] [--json]` | Builds or extends CAST.md from the screenplays PROJECT.md lists (§7.1). Adds members; never changes or removes one. `--dry-run` prints the members it would add. | **Implemented** (2026-10-22). Replaces `echada generate cast` (SwiftEchada EC-P11). Stops when PROJECT.md still has a legacy `cast:` block and there is no CAST.md (that is `cast-import`'s). *Changed 2026-11-07:* **the Personaje app is the only builder of CAST.md** (Personaje APP-UI UD21; SwiftReparto RQ-27). `cast-discover` becomes report-only: it always behaves as `--dry-run` and never writes CAST.md. The library's discovery writer stays, called by the app. **Implemented 2026-11-15:** `--dry-run` is still accepted and changes nothing; `--json` prints the report, line counts included; the text report lists the members it would add with their line counts and each existing member's count change, old → new. |
 | `personaje verify` | SwiftDossier `validate(cast:)` for the whole project. | Read-only. |
 | `personaje cast-page` | Writes `<charactersDir>/cast.html`: a card per member with a dossier. | Port of `tools/cast_list.py`; honours `charactersDir`. |
 
@@ -227,6 +227,10 @@ Depends on SwiftCompartido ≥ 7.3.0 and SwiftReparto 0.2.0 (`canonicalName`,
 hard). The writer sets only `character`; `role` and `manifest` come later
 from `new` through SwiftDossier. *Changed 2026-11-07:* it also sets
 `lineCount` (RP-P10), which needs SwiftReparto 0.3.0 (hard for that field).
+*Implemented 2026-11-15* against SwiftReparto 0.4.0, the first release
+that carries `CastMember.lineCount` with `merging(_:)` replacing it (and
+`CastDocument.castVersion`, which discovery carries as found and never
+sets).
 
 **Status: implemented 2026-10-22** as `CastDiscovery` in the library
 (`Sources/SwiftPersonaje/CastDiscovery.swift`), behind `personaje
@@ -245,10 +249,27 @@ cast-discover`:
   sorts after it. That rule gives the same roster whatever order names
   arrive in; existing members never move. A run that adds nothing writes
   nothing, so an existing CAST.md keeps its bytes. *Changed 2026-11-07,
-  not yet implemented:* a run that adds nothing but changes a `lineCount`
-  writes; a run where no member and no count changes still writes nothing.
-- **Dependency:** SwiftReparto `.upToNextMajor(from: "0.2.0")`
-  (`canonicalName`, released 2026-10-22).
+  implemented 2026-11-15:* a run that adds nothing but changes a
+  `lineCount` writes; a run where no member and no count changes still
+  writes nothing.
+- *Implemented 2026-11-15 (RP-P10, RP-P13):* `discoveredMembers(from:)`
+  sets each member's `lineCount` to the sum of the SwiftCompartido
+  `lineCount`s (character cues) of every raw name that canonicalizes to
+  it; `merge(_:into:)` lets `merging(_:)` replace an existing member's
+  count. A member discovery doesn't find keeps its count. The report
+  gains `lineCounts` (`[CastDiscovery.LineCount]`: `character`,
+  `lineCount`, `previous`, one per discovered member in roster order)
+  and the derived `changedLineCounts` / `updatedLineCounts`, so the app
+  can preview old → new.
+- *RP-P11 and counts:* the roster (members and order) is the same
+  whether a store holds one screenplay or every episode. `lineCount` is
+  not: it counts the store the run read, so it covers every episode only
+  when the run reads every episode, as the CLI and the app do. A series
+  built by repeated one-episode merges ends with each member's count
+  from the last episode that found them.
+- **Dependency:** SwiftReparto `.upToNextMajor(from: "0.4.0")`
+  (`canonicalName`; `lineCount` replaced by `merging(_:)`;
+  `castVersion`).
 
 ## 8. Changes elsewhere
 

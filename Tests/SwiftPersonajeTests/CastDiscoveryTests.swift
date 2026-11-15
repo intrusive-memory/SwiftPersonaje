@@ -10,7 +10,7 @@ struct CastDiscoveryTests {
 
   // MARK: - RP-P9, RP-P13: one screenplay
 
-  @Test("One screenplay: every speaking character, canonical, character only")
+  @Test("One screenplay: every speaking character, canonical, character and lineCount only")
   func oneScreenplay() async throws {
     let project = try Synthetic.makeProject()
     let cast = project.appendingPathComponent("CAST.md")
@@ -26,14 +26,155 @@ struct CastDiscoveryTests {
     #expect(report.totalCount == 3)
 
     let document = try CastMarkdownParser().parse(fileURL: cast)
-    #expect(document.cast.map(\.character) == ["ALICE", "BOB", "COP #1"])
-    for member in document.cast {
-      // RP-P13 and "sets only character": nothing else is filled in.
-      #expect(member == CastMember(character: member.character))
-    }
+    // RP-P10, RP-P13: character and lineCount, nothing else. `BOB (CONT'D)`
+    // and `ALICE (V.O.)` are cues for BOB and ALICE.
+    #expect(
+      document.cast == [
+        CastMember(character: "ALICE", lineCount: 1),
+        CastMember(character: "BOB", lineCount: 2),
+        CastMember(character: "COP #1", lineCount: 1),
+      ])
     let text = try Synthetic.read(cast)
-    #expect(!text.contains("lineCount"))
+    #expect(text.contains("lineCount: 2"))
     #expect(!text.contains("wordCount"))
+    #expect(!text.contains("scene"))
+  }
+
+  // MARK: - RP-P10: line counts
+
+  @Test("Counts are character cues summed across episodes, V.O. and CONT'D included")
+  func countsAcrossEpisodes() async throws {
+    let project = try Synthetic.makeProject()
+    let cast = project.appendingPathComponent("CAST.md")
+
+    let report = try await CastDiscovery.discover(
+      screenplays: Synthetic.episodeURLs(in: project, Synthetic.episodes.map(\.name)),
+      castFile: cast)
+
+    let expected: [String: Int] = [
+      // ALICE (V.O.) in one, ALICE in two and three.
+      "ALICE": 3,
+      // Only in episode two.
+      "BARTENDER": 1,
+      // BOB and BOB (CONT'D) in one, BOB in two.
+      "BOB": 3,
+      "COP #1": 1,
+      "NARRATOR": 1,
+      "ZED": 1,
+    ]
+    let document = try CastMarkdownParser().parse(fileURL: cast)
+    #expect(
+      Dictionary(uniqueKeysWithValues: document.cast.map { ($0.character, $0.lineCount) })
+        == expected.mapValues { Optional($0) })
+
+    // The report carries every count, old (none) and new, in roster order.
+    #expect(report.lineCounts.map(\.character) == document.cast.map(\.character))
+    #expect(
+      report.lineCounts.allSatisfy { $0.previous == nil && $0.lineCount == expected[$0.character] })
+    #expect(report.changedLineCounts.count == 6)
+    #expect(report.updatedLineCounts.isEmpty)
+  }
+
+  /// Every discovered member present, with stale counts; one member discovery
+  /// never finds, with a count of its own; a castVersion the app wrote.
+  static let staleCounts = """
+    ---
+    type: cast
+    schemaVersion: 1
+    castVersion: 4
+    cast:
+    - character: ZED
+      actor: Pat Example
+      voicePrompt: A dry, unhurried baritone.
+      lineCount: 1
+      bio: Runs the bar after hours.
+    - character: Alice
+      language: en
+      lineCount: 1
+    - character: BARTENDER
+      lineCount: 1
+    - character: BOB
+      voicePrompt: Warm and quick.
+      lineCount: 1
+    - character: "COP #1"
+      lineCount: 1
+    - character: NARRATOR
+      lineCount: 1
+    - character: THE STRANGER
+      lineCount: 9
+      bio: Never named on screen.
+    ---
+
+    Hand-written notes stay here.
+
+    """
+
+  @Test("A run that adds nobody but changes a count writes; existing counts are replaced")
+  func countOnlyChangeWrites() async throws {
+    let project = try Synthetic.makeProject()
+    let cast = project.appendingPathComponent("CAST.md")
+    try Synthetic.write(Self.staleCounts, to: cast)
+    let before = try CastMarkdownParser().parse(fileURL: cast)
+
+    let report = try await CastDiscovery.discover(
+      screenplays: Synthetic.episodeURLs(in: project, Synthetic.episodes.map(\.name)),
+      castFile: cast)
+
+    #expect(report.added.isEmpty)
+    #expect(report.wrote)
+    #expect(
+      report.updatedLineCounts == [
+        CastDiscovery.LineCount(character: "Alice", lineCount: 3, previous: 1),
+        CastDiscovery.LineCount(character: "BOB", lineCount: 3, previous: 1),
+      ])
+    #expect(report.changedLineCounts == report.updatedLineCounts)
+    // Unchanged counts are still reported, old beside new.
+    #expect(
+      report.lineCounts.first { $0.character == "ZED" }
+        == CastDiscovery.LineCount(character: "ZED", lineCount: 1, previous: 1))
+    #expect(!report.lineCounts.contains { $0.character == "THE STRANGER" })
+
+    let after = try CastMarkdownParser().parse(fileURL: cast)
+    // Nobody moves; nothing a person wrote changes; castVersion and the body
+    // are carried as found.
+    #expect(after.cast.map(\.character) == before.cast.map(\.character))
+    #expect(after.castVersion == 4)
+    #expect(after.body == before.body)
+    for (old, new) in zip(before.cast, after.cast) {
+      var expected = old
+      expected.lineCount = new.lineCount
+      #expect(new == expected)
+    }
+    let counts = Dictionary(uniqueKeysWithValues: after.cast.map { ($0.character, $0.lineCount) })
+    #expect(counts["Alice"] == 3)
+    #expect(counts["BOB"] == 3)
+    #expect(counts["ZED"] == 1)
+    // Not discovered: keeps its count.
+    #expect(counts["THE STRANGER"] == 9)
+
+    // Nothing changes on the next run, so nothing is written.
+    let written = try Synthetic.read(cast)
+    let again = try await CastDiscovery.discover(
+      screenplays: Synthetic.episodeURLs(in: project, Synthetic.episodes.map(\.name)),
+      castFile: cast)
+    #expect(!again.wrote)
+    #expect(again.changedLineCounts.isEmpty)
+    #expect(try Synthetic.read(cast) == written)
+  }
+
+  @Test("Dry run reports count changes and leaves the bytes alone")
+  func dryRunReportsCountChanges() async throws {
+    let project = try Synthetic.makeProject()
+    let cast = project.appendingPathComponent("CAST.md")
+    try Synthetic.write(Self.staleCounts, to: cast)
+
+    let report = try await CastDiscovery.discover(
+      screenplays: Synthetic.episodeURLs(in: project, Synthetic.episodes.map(\.name)),
+      castFile: cast, dryRun: true)
+
+    #expect(!report.wrote)
+    #expect(report.updatedLineCounts.map(\.character) == ["Alice", "BOB"])
+    #expect(try Synthetic.read(cast) == Self.staleCounts)
   }
 
   @Test("A character who never speaks is not a member")
@@ -48,7 +189,7 @@ struct CastDiscoveryTests {
 
   // MARK: - RP-P11: all at once versus repeated merges
 
-  @Test("Every episode at once and one episode per run, in any order, give identical bytes")
+  @Test("Every episode at once and one episode per run, in any order, give the same roster")
   func allAtOnceEqualsRepeatedMerges() async throws {
     let names = Synthetic.episodes.map(\.name)
 
@@ -56,10 +197,8 @@ struct CastDiscoveryTests {
     let allCast = allAtOnce.appendingPathComponent("CAST.md")
     _ = try await CastDiscovery.discover(
       screenplays: Synthetic.episodeURLs(in: allAtOnce, names), castFile: allCast)
-    let expected = try Synthetic.read(allCast)
-    #expect(
-      try CastMarkdownParser().parse(fileURL: allCast).cast.map(\.character)
-        == ["ALICE", "BARTENDER", "BOB", "COP #1", "NARRATOR", "ZED"])
+    let expected = try CastMarkdownParser().parse(fileURL: allCast).cast.map(\.character)
+    #expect(expected == ["ALICE", "BARTENDER", "BOB", "COP #1", "NARRATOR", "ZED"])
 
     let orders: [[String]] = [
       names,
@@ -73,7 +212,11 @@ struct CastDiscoveryTests {
         _ = try await CastDiscovery.discover(
           screenplays: Synthetic.episodeURLs(in: project, [name]), castFile: cast)
       }
-      #expect(try Synthetic.read(cast) == expected, "order \(order)")
+      // Same members in the same order. Counts reflect the store each run
+      // read (one episode here), so only the roster is compared.
+      #expect(
+        try CastMarkdownParser().parse(fileURL: cast).cast.map(\.character) == expected,
+        "order \(order)")
     }
   }
 
@@ -137,11 +280,23 @@ struct CastDiscoveryTests {
     let after = try CastMarkdownParser().parse(fileURL: cast)
     #expect(after.body == before.body)
 
-    // Every original member survives unchanged, in its original order.
+    // Every original member survives in its original order, unchanged except
+    // for the derived lineCount.
     let originals = after.cast.filter { member in
       before.cast.contains { $0.character == member.character }
     }
-    #expect(originals == before.cast)
+    #expect(
+      originals.map { member -> CastMember in
+        var stripped = member
+        stripped.lineCount = nil
+        return stripped
+      } == before.cast)
+    let counts = Dictionary(uniqueKeysWithValues: after.cast.map { ($0.character, $0.lineCount) })
+    #expect(counts["ZED"] == 1)
+    #expect(counts["BOB"] == 3)
+    #expect(counts["Alice"] == 3)
+    // Added by hand and never discovered: "not counted yet".
+    #expect(counts["THE STRANGER"] == .some(nil))
 
     // RP-P14: THE STRANGER is not joined to anyone; Alice keeps its spelling.
     #expect(after.cast.filter { $0.character.uppercased() == "ALICE" }.count == 1)
@@ -194,9 +349,26 @@ struct CastDiscoveryTests {
 
   // MARK: - Mapping and ordering units
 
-  private static func info(_ name: String) -> StoreCharacterInfo {
+  private static func info(_ name: String, lines: Int = 7) -> StoreCharacterInfo {
     StoreCharacterInfo(
-      name: name, lineCount: 7, wordCount: 42, sceneIds: [], documents: [], firstLine: nil)
+      name: name, lineCount: lines, wordCount: 42, sceneIds: [], documents: [], firstLine: nil)
+  }
+
+  @Test("Raw names that canonicalize to one member sum their counts")
+  func mappingSumsCounts() {
+    let collection = CharacterCollectionResult(characters: [
+      "BOB": Self.info("BOB", lines: 5),
+      "@BOB": Self.info("@BOB", lines: 2),
+      "bob": Self.info("bob", lines: 1),
+      "ALICE": Self.info("ALICE", lines: 4),
+      "AL/BERT": Self.info("AL/BERT", lines: 3),
+    ])
+    let found = CastDiscovery.discoveredMembers(from: collection)
+    #expect(
+      found.members == [
+        CastMember(character: "ALICE", lineCount: 4),
+        CastMember(character: "BOB", lineCount: 8),
+      ])
   }
 
   @Test("Names are canonicalized and de-duplicated; invalid names are reported, not rewritten")

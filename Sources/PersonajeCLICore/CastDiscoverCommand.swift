@@ -2,31 +2,39 @@ import ArgumentParser
 import Foundation
 import SwiftPersonaje
 
-/// `personaje cast-discover`: builds or extends `CAST.md` from the screenplays
-/// `PROJECT.md` lists (REQUIREMENTS §2, §7.1). Replaces `echada generate cast`
-/// (SwiftEchada EC-P11).
+/// `personaje cast-discover`: reports what discovery would do to `CAST.md` from
+/// the screenplays `PROJECT.md` lists (REQUIREMENTS §2, §7.1). Replaces
+/// `echada generate cast` (SwiftEchada EC-P11).
+///
+/// Report-only since 2026-11-07: the Personaje app is the only builder of
+/// `CAST.md` (Personaje APP-UI UD21; SwiftReparto RQ-27). The command always
+/// runs discovery as a dry run and never writes `CAST.md`; the app calls the
+/// same library writer to build it.
 public struct CastDiscoverCommand: AsyncParsableCommand {
   public static let configuration = CommandConfiguration(
     commandName: "cast-discover",
-    abstract: "Add the characters who speak in the project's screenplays to CAST.md.",
+    abstract: "Report the characters who speak in the project's screenplays, against CAST.md.",
     discussion: """
       Reads every screenplay under PROJECT.md's episodesDir (default: episodes) \
       matching its filePattern (default: *.fountain; a comma-separated string \
-      names episode files one by one), and adds each speaking character to \
-      CAST.md beside PROJECT.md. Only the character name is written.
+      names episode files one by one), and reports what discovery would do to \
+      CAST.md beside PROJECT.md: the speaking characters it would add, and each \
+      member's line count (character cues across every episode), old and new.
 
-      Members are only ever added: nothing already in CAST.md is changed, \
+      Report only: this command never writes CAST.md. The Personaje app is the \
+      only builder of CAST.md; it runs the same discovery. --dry-run is \
+      accepted and changes nothing.
+
+      Discovery only ever adds members: nothing already in CAST.md is \
       reordered or removed, and two different names are never joined (review \
-      them after --dry-run). Running once over every episode, or once per \
-      episode in any order, gives the same CAST.md.
-
-      --dry-run prints the members it would add and writes nothing.
+      them from this report). Only lineCount, which is derived, is refreshed.
       """
   )
 
   @OptionGroup public var options: ProjectOptions
 
-  @Flag(name: .long, help: "Print the members that would be added; write nothing.")
+  /// Kept so existing scripts still parse. The command is always a dry run.
+  @Flag(name: .long, help: "Accepted for compatibility; cast-discover never writes CAST.md.")
   public var dryRun: Bool = false
 
   public init() {}
@@ -50,8 +58,8 @@ public struct CastDiscoverCommand: AsyncParsableCommand {
       throw ValidationError(error.description)
     }
 
-    // A legacy `cast:` roster is `cast-import`'s to move; discovering first
-    // would create a CAST.md without it.
+    // A legacy `cast:` roster is `cast-import`'s to move; a report against an
+    // empty roster would list every member of it as new.
     if !FileManager.default.fileExists(atPath: project.castFile.path),
       project.hasLegacyCastBlock
     {
@@ -70,8 +78,9 @@ public struct CastDiscoverCommand: AsyncParsableCommand {
 
     let report: CastDiscovery.Report
     do {
+      // Always a dry run, whatever the flag says (§2: report-only).
       report = try await CastDiscovery.discover(
-        screenplays: screenplays, castFile: project.castFile, dryRun: dryRun)
+        screenplays: screenplays, castFile: project.castFile, dryRun: true)
     } catch let error as CastDiscoveryError {
       throw ValidationError(error.description)
     }
@@ -106,25 +115,35 @@ public struct CastDiscoverCommand: AsyncParsableCommand {
     }
 
     let castName = relative(report.castFile)
-    if report.added.isEmpty {
-      lines.append("Nothing to add; \(castName) unchanged (\(report.totalCount) members).")
-      return lines.joined(separator: "\n") + "\n"
+    let countByName = Dictionary(
+      report.lineCounts.map { ($0.character, $0.lineCount) },
+      uniquingKeysWith: { first, _ in first })
+    let updated = report.updatedLineCounts
+
+    if report.added.isEmpty && updated.isEmpty {
+      lines.append(
+        report.castFileWasMissing
+          ? "Nothing to add; \(castName) does not exist."
+          : "Nothing to change; \(castName) is current (\(report.totalCount) members).")
     }
 
-    lines.append(
-      report.dryRun
-        ? "Would add \(report.added.count) to \(castName):"
-        : "Added \(report.added.count) to \(castName):")
-    for name in report.added {
-      lines.append("  + \(name)")
+    if !report.added.isEmpty {
+      lines.append("Would add \(report.added.count) to \(castName):")
+      for name in report.added {
+        let count = countByName[name].map { " (\($0) \($0 == 1 ? "line" : "lines"))" } ?? ""
+        lines.append("  + \(name)\(count)")
+      }
     }
-    if report.dryRun {
-      lines.append("Dry run: nothing written.")
-    } else {
-      lines.append(
-        "\(report.castFileWasMissing ? "Created" : "Wrote") \(castName) (\(report.totalCount) members)."
-      )
+
+    if !updated.isEmpty {
+      lines.append("Would update \(updated.count) line \(updated.count == 1 ? "count" : "counts"):")
+      for entry in updated {
+        let old = entry.previous.map(String.init) ?? "none"
+        lines.append("  ~ \(entry.character): \(old) -> \(entry.lineCount)")
+      }
     }
+
+    lines.append("Report only: \(castName) not written. The Personaje app builds it.")
     return lines.joined(separator: "\n") + "\n"
   }
 }

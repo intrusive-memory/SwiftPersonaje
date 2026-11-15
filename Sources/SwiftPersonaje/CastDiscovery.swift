@@ -15,16 +15,25 @@ import SwiftReparto
 ///
 /// What it promises:
 ///
-/// - **Only `character` is set** on a new member. Counts are never written
-///   (RP-P13); `role` and `manifest` come later from `personaje new`.
+/// - **Only `character` and `lineCount` are set** on a discovered member.
+///   `lineCount` is SwiftCompartido's `lineCount` (character cues) summed over
+///   every raw name that canonicalizes to the member (RP-P10, RP-P13); scene
+///   counts are never written. `role` and `manifest` come later from
+///   `personaje new`.
 /// - **Additive** (RP-P10): members are added, missing fields are filled by
 ///   `merging(_:)`, and nothing a person wrote is changed, reordered or
-///   removed.
+///   removed. The one exception is `lineCount`, which is derived: a discovered
+///   member's count **replaces** the old one on every run. A member discovery
+///   doesn't find keeps whatever count it had.
 /// - **Exact names** (RP-P14): two different names are two members, even when
 ///   they are one person. Joining them is a review step.
 /// - **Order-independent** (RP-P11): discovering every episode at once, or one
-///   episode per run in any order, gives a byte-identical `CAST.md`. See
-///   ``merge(_:into:)`` for the ordering rule.
+///   episode per run in any order, gives the same roster in the same order.
+///   See ``merge(_:into:)`` for the ordering rule. `lineCount` reflects the
+///   store the run was given, so it counts every episode only when the run
+///   reads every episode (the CLI and the app both do).
+/// - **Writes only on change:** a run that adds no member and changes no
+///   `lineCount` leaves an existing `CAST.md` byte for byte as it was.
 public enum CastDiscovery {
 
   // MARK: - Results
@@ -43,10 +52,33 @@ public enum CastDiscovery {
     }
   }
 
+  /// A discovered member's line count after the run, beside the count
+  /// `CAST.md` held before it, so a caller can preview old → new.
+  public struct LineCount: Sendable, Equatable, Codable {
+    /// The member's `character`, spelled as the roster spells it (a member
+    /// already in `CAST.md` keeps its own spelling).
+    public let character: String
+    /// The count discovery found: character cues across the screenplays read.
+    public let lineCount: Int
+    /// The count `CAST.md` held before the run. `nil` for a member the run
+    /// adds, and for an existing member that had no count yet.
+    public let previous: Int?
+
+    public init(character: String, lineCount: Int, previous: Int?) {
+      self.character = character
+      self.lineCount = lineCount
+      self.previous = previous
+    }
+
+    /// `true` when the run sets a count different from the one before it
+    /// (including a first count on a member that had none).
+    public var changed: Bool { previous != lineCount }
+  }
+
   /// Members discovered in a character collection, before any merge.
   public struct Discovered: Sendable, Equatable {
-    /// One member per distinct canonical name, `character` only, sorted by
-    /// name.
+    /// One member per distinct canonical name, with `character` and
+    /// `lineCount` set, sorted by name.
     public let members: [CastMember]
     /// Names that could not be canonicalized, sorted by name.
     public let rejected: [Rejection]
@@ -77,10 +109,25 @@ public enum CastDiscovery {
     /// `true` when `CAST.md` did not exist before the run.
     public let castFileWasMissing: Bool
     /// `true` when this run wrote `CAST.md`. Never `true` under dry run, and
-    /// `false` when there was nothing to add.
+    /// `false` when no member was added and no `lineCount` changed.
     public let wrote: Bool
     /// `true` when the run was a dry run.
     public let dryRun: Bool
+    /// One entry per discovered member, in roster order: the count this run
+    /// sets and the count before it. Members discovery didn't find are not
+    /// listed; their counts are untouched.
+    public let lineCounts: [LineCount]
+
+    /// The entries whose count this run changes (or would, under dry run),
+    /// members it adds included.
+    public var changedLineCounts: [LineCount] { lineCounts.filter(\.changed) }
+
+    /// The existing members whose count this run changes (or would): the
+    /// changes that are not additions.
+    public var updatedLineCounts: [LineCount] {
+      let addedNames = Set(added)
+      return lineCounts.filter { $0.changed && !addedNames.contains($0.character) }
+    }
   }
 
   // MARK: - Reading screenplays
@@ -133,21 +180,22 @@ public enum CastDiscovery {
   /// Turns a character collection into members (RP-P9).
   ///
   /// Each name goes through `CastMember.canonicalName(_:)`. Names that
-  /// canonicalize to the same string become one member. Only `character` is
-  /// set: line, word and scene counts stay in SwiftCompartido (RP-P13).
-  /// `characters` is a dictionary, so the result is sorted (RP-P11).
+  /// canonicalize to the same string become one member, whose `lineCount` is
+  /// the sum of their SwiftCompartido `lineCount`s (RP-P10). Only `character`
+  /// and `lineCount` are set: word and scene counts stay in SwiftCompartido
+  /// (RP-P13). `characters` is a dictionary, so the result is sorted (RP-P11).
   public static func discoveredMembers(from collection: CharacterCollectionResult) -> Discovered {
-    var names = Set<String>()
+    var counts: [String: Int] = [:]
     var rejected: [Rejection] = []
-    for rawName in collection.characters.keys {
+    for (rawName, info) in collection.characters {
       do {
-        names.insert(try CastMember.canonicalName(rawName))
+        counts[try CastMember.canonicalName(rawName), default: 0] += info.lineCount
       } catch {
         rejected.append(Rejection(name: rawName, reason: error.localizedDescription))
       }
     }
     return Discovered(
-      members: names.sorted().map { CastMember(character: $0) },
+      members: counts.keys.sorted().map { CastMember(character: $0, lineCount: counts[$0]) },
       rejected: rejected.sorted { $0.name < $1.name }
     )
   }
@@ -158,7 +206,9 @@ public enum CastDiscovery {
   ///
   /// Matching, gap-filling and de-duplication are `[CastMember].merging(_:)`'s,
   /// unchanged (RP-P10). Members already in `roster` keep their position and
-  /// every field. No name is ever matched to a different name (RP-P14).
+  /// every field except `lineCount`, which a discovered member's non-`nil`
+  /// count replaces (SwiftReparto RQ-26). No name is ever matched to a
+  /// different name (RP-P14).
   ///
   /// `merging(_:)` appends new members at the end, which would make the
   /// result depend on the order episodes were discovered in. So each new
@@ -203,9 +253,10 @@ public enum CastDiscovery {
   ///   - screenplays: The screenplay files to read. All are loaded into one
   ///     store, so this is the "every episode at once" path.
   ///   - castFile: The `CAST.md` to extend. Created when missing and there is
-  ///     something to add.
+  ///     something to add. Written when a member is added or a `lineCount`
+  ///     changes; otherwise left byte for byte as it was.
   ///   - dryRun: When `true`, nothing is written (SP-7); the report says what
-  ///     would be added.
+  ///     would be added and which counts would change.
   public static func discover(
     screenplays: [URL],
     castFile: URL,
@@ -242,10 +293,25 @@ public enum CastDiscovery {
 
     let (cast, added) = merge(found.members, into: document.cast)
 
-    // Write only when there is a member to add: a run that finds nothing new
-    // leaves an existing CAST.md byte for byte as it was, and doesn't create
-    // an empty one.
-    let shouldWrite = !dryRun && !added.isEmpty
+    // Old → new count for every discovered member, in roster order. A member
+    // already in CAST.md is found by canonical name, as `merging(_:)` matches.
+    var previousByKey: [String: Int?] = [:]
+    for member in document.cast {
+      previousByKey[sortKey(member.character)] = member.lineCount
+    }
+    let discoveredKeys = Set(found.members.map { sortKey($0.character) })
+    let addedNames = Set(added)
+    let lineCounts: [LineCount] = cast.compactMap { member in
+      let key = sortKey(member.character)
+      guard discoveredKeys.contains(key), let count = member.lineCount else { return nil }
+      let previous = addedNames.contains(member.character) ? nil : previousByKey[key] ?? nil
+      return LineCount(character: member.character, lineCount: count, previous: previous)
+    }
+
+    // Write only when the roster changed: a member added or a count changed.
+    // A run that changes nothing leaves an existing CAST.md byte for byte as
+    // it was, and doesn't create an empty one.
+    let shouldWrite = !dryRun && cast != document.cast
     if shouldWrite {
       document.cast = cast
       try parser.write(document: document, to: castFile)
@@ -261,7 +327,8 @@ public enum CastDiscovery {
       totalCount: cast.count,
       castFileWasMissing: !fileExists,
       wrote: shouldWrite,
-      dryRun: dryRun
+      dryRun: dryRun,
+      lineCounts: lineCounts
     )
   }
 }

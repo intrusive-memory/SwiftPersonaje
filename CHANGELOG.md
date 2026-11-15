@@ -10,6 +10,8 @@ All notable changes to SwiftPersonaje are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-15
+
 ### Added
 
 - **Line counts** (RP-P10): discovery sets each discovered member's
@@ -29,7 +31,7 @@ All notable changes to SwiftPersonaje are recorded here. The format follows
   as a dry run and never writes CAST.md; the Personaje app is the only builder.
   `--dry-run` is still accepted. The text report lists line counts for members
   it would add and old → new counts for existing members.
-- Requires SwiftReparto 0.4.0.
+- Requires SwiftReparto 0.4.0 and SwiftProyecto 5.5.1.
 
 ## [0.1.0] - 2026-10-22
 

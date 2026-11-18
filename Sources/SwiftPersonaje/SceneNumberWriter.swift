@@ -91,7 +91,8 @@ public enum SceneNumberTextEncoding: String, Sendable, Codable, Hashable {
       while index < body.count {
         let first = UInt16(body[index])
         let second = UInt16(body[index + 1])
-        units.append(candidate == .utf16LittleEndian ? first | (second << 8) : (first << 8) | second)
+        units.append(
+          candidate == .utf16LittleEndian ? first | (second << 8) : (first << 8) | second)
         index += 2
       }
       text = String(decoding: units, as: UTF16.self)
@@ -462,7 +463,8 @@ public enum SceneNumberValidator {
     }
 
     var unnumbered: Set<Int> = []
-    for heading in SceneNumbering.headings(in: plan.originalText) where heading.existingNumber == nil {
+    for heading in SceneNumbering.headings(in: plan.originalText)
+    where heading.existingNumber == nil {
       unnumbered.insert(heading.lineIndex)
     }
     var newNumbers: [Int: String] = [:]
@@ -525,7 +527,8 @@ public enum SceneNumberValidator {
       let isHeading = before.elementType == .sceneHeading
       // A heading's text is its line without the `#n#`; the space before the
       // appended number stays, so trailing whitespace is set aside.
-      let textBefore = isHeading ? trimmingTrailingWhitespace(before.elementText) : before.elementText
+      let textBefore =
+        isHeading ? trimmingTrailingWhitespace(before.elementText) : before.elementText
       let textAfter = isHeading ? trimmingTrailingWhitespace(after.elementText) : after.elementText
       guard textBefore == textAfter else {
         throw fail("element \(index) changed text")
@@ -673,7 +676,8 @@ public enum SceneNumberWriteError: Error, Sendable, Equatable, CustomStringConve
     case .writeFailed(let file, let reason):
       return "\(file.path): write failed: \(reason); the original is in place"
     case .verifyFailed(let file):
-      return "\(file.path): the written bytes didn't read back as planned; the original was restored"
+      return
+        "\(file.path): the written bytes didn't read back as planned; the original was restored"
     case .restoreFailed(let file, let backup, let reason):
       return
         "\(file.path): restore failed: \(reason); the file may be damaged, the original is at \(backup.path)"
@@ -713,7 +717,9 @@ extension SceneNumberWriter {
   /// - Throws: ``SceneNumberWriteError``, or ``SceneNumberValidationError``
   ///   when the plan fails SN-5.
   @discardableResult
-  public static func write(_ plan: SceneNumberPlan, backupRoot: URL, relativeTo projectRoot: URL? = nil)
+  public static func write(
+    _ plan: SceneNumberPlan, backupRoot: URL, relativeTo projectRoot: URL? = nil
+  )
     throws -> SceneNumberResult
   {
     try write(
@@ -729,7 +735,8 @@ extension SceneNumberWriter {
   ) throws -> SceneNumberResult {
     let file = plan.file
     if case .skipped(let reason) = plan.status {
-      return SceneNumberResult(file: file, outcome: .skipped(reason: reason), backup: nil, changes: [])
+      return SceneNumberResult(
+        file: file, outcome: .skipped(reason: reason), backup: nil, changes: [])
     }
     guard plan.hasChanges else {
       return SceneNumberResult(file: file, outcome: .unchanged, backup: nil, changes: [])

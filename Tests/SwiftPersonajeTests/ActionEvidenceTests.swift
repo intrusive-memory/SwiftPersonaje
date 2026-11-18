@@ -35,7 +35,9 @@ struct ActionEvidenceTests {
     let scene: String?
     let text: String
 
-    init(_ kind: EvidenceItem.Kind, _ episode: String, _ line: Int, _ scene: String?, _ text: String) {
+    init(
+      _ kind: EvidenceItem.Kind, _ episode: String, _ line: Int, _ scene: String?, _ text: String
+    ) {
       self.kind = kind
       self.episode = episode
       self.line = line
@@ -77,17 +79,21 @@ struct ActionEvidenceTests {
     "Each introduction has its episode, line, scene and exact text (cases c, h, i)",
     arguments: [
       (
-        "MARA", ActionEvidenceTests.Source(
+        "MARA",
+        ActionEvidenceTests.Source(
           .introduction, ActionEvidenceTests.quay, 31, "2",
           "MARA OKAFOR (20's BLACK, CLOSE-CROPPED HAIR) counts coins into a ledger, lips moving.")
       ),
       (
-        "WICK", ActionEvidenceTests.Source(
+        "WICK",
+        ActionEvidenceTests.Source(
           .introduction, ActionEvidenceTests.quay, 77, "4",
-          "WICK, 60's, the lighthouse keeper, wiry and salt-bleached, stirs a pot of something grey.")
+          "WICK, 60's, the lighthouse keeper, wiry and salt-bleached, stirs a pot of something grey."
+        )
       ),
       (
-        "ODILE", ActionEvidenceTests.Source(
+        "ODILE",
+        ActionEvidenceTests.Source(
           .introduction, ActionEvidenceTests.lamp, 12, "0A",
           "ODILE VANCE, 50's, the harbourmaster, sharp-eyed, speaks with a clipped Northern Highland accent."
         )
@@ -163,12 +169,15 @@ struct ActionEvidenceTests {
   @Test("A capitalised name matches a cue only as whole words (VE-3)")
   func nameVariantsMatchWholeWordsOnly() {
     #expect(
-      CapitalisedNames.firstMatch(of: "CONSTABLE", in: #"CONSTABLE HAROLD "HAL" BRISK, 40's, strides."#)?
+      CapitalisedNames.firstMatch(
+        of: "CONSTABLE", in: #"CONSTABLE HAROLD "HAL" BRISK, 40's, strides."#)?
         .written == #"CONSTABLE HAROLD "HAL" BRISK"#)
     #expect(CapitalisedNames.firstMatch(of: "CONSTABLE", in: "CONSTABLEWICK waves.") == nil)
     #expect(CapitalisedNames.firstMatch(of: "WICK", in: "A plaque reads WICKHAM & SONS.") == nil)
-    #expect(CapitalisedNames.firstMatch(of: "BRISK", in: #"CONSTABLE HAROLD "HAL" BRISK nods."#) != nil)
-    #expect(CapitalisedNames.firstMatch(of: "HAROLD BRISK", in: #"HAROLD "HAL" BRISK nods."#) == nil)
+    #expect(
+      CapitalisedNames.firstMatch(of: "BRISK", in: #"CONSTABLE HAROLD "HAL" BRISK nods."#) != nil)
+    #expect(
+      CapitalisedNames.firstMatch(of: "HAROLD BRISK", in: #"HAROLD "HAL" BRISK nods."#) == nil)
     #expect(CapitalisedNames.firstMatch(of: "CONSTABLE", in: "The CONSTABLE'S cape drips.") != nil)
     #expect(CapitalisedNames.firstMatch(of: "MARA", in: "Mara counts coins.") == nil)
     #expect(CapitalisedNames.firstMatch(of: "MR. SMITH", in: "MR. SMITH, 50's, sits.") != nil)

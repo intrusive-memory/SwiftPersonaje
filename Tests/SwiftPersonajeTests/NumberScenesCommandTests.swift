@@ -44,7 +44,9 @@ struct NumberScenesCommandTests {
     #expect(gitignore(project) == nil)
   }
 
-  @Test("A run numbers every file, backs each up under a timestamped directory, and leaves the backup equal to the original")
+  @Test(
+    "A run numbers every file, backs each up under a timestamped directory, and leaves the backup equal to the original"
+  )
   func runNumbersAndBacksUp() throws {
     let project = try Synthetic.makeProject()
     let before = try episodeData(project)
@@ -104,7 +106,9 @@ struct NumberScenesCommandTests {
     #expect(report.files[0].headings.map(\.number) == ["1", "2"])
   }
 
-  @Test("`.personaje/` goes into .gitignore exactly once, and the episodes are byte-identical after a second run")
+  @Test(
+    "`.personaje/` goes into .gitignore exactly once, and the episodes are byte-identical after a second run"
+  )
   func addsPersonajeToGitignoreOnce() throws {
     let project = try Synthetic.makeProject()
     // An existing .gitignore without a trailing newline keeps its lines.
@@ -126,7 +130,8 @@ struct NumberScenesCommandTests {
     #expect(occurrences == 1)
   }
 
-  @Test("An existing .personaje/ entry is left alone, and nothing to number leaves .gitignore alone")
+  @Test(
+    "An existing .personaje/ entry is left alone, and nothing to number leaves .gitignore alone")
   func gitignoreUntouchedWhenCovered() throws {
     let project = try Synthetic.makeProject()
     let ignore = project.appendingPathComponent(".gitignore")
@@ -146,7 +151,9 @@ struct NumberScenesCommandTests {
     #expect(gitignore(clean) == nil)
   }
 
-  @Test("A file that fails is reported, the others are still numbered, and the failure count is non-zero")
+  @Test(
+    "A file that fails is reported, the others are still numbered, and the failure count is non-zero"
+  )
   func failureContinuesAndCounts() throws {
     let project = try Synthetic.makeProject()
     let urls = Synthetic.episodeURLs(in: project, Self.names)

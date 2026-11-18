@@ -45,7 +45,8 @@ struct SceneNumberWriterTests {
     try FileManager.default.createDirectory(at: episodes, withIntermediateDirectories: true)
     let file = episodes.appendingPathComponent(name)
     try Data(text.utf8).write(to: file)
-    let backupRoot = root.appendingPathComponent(".personaje/backups/2026-01-01T00-00-00Z", isDirectory: true)
+    let backupRoot = root.appendingPathComponent(
+      ".personaje/backups/2026-01-01T00-00-00Z", isDirectory: true)
     return (root, file, backupRoot)
   }
 
@@ -139,7 +140,8 @@ struct SceneNumberWriterTests {
     let notes = root.appendingPathComponent("notes.txt")
     try Data("INT. NOT A SCREENPLAY - DAY\n".utf8).write(to: notes)
     let skipped = try SceneNumberWriter.plan(for: notes)
-    let skippedResult = try SceneNumberWriter.write(skipped, backupRoot: backupRoot, relativeTo: root)
+    let skippedResult = try SceneNumberWriter.write(
+      skipped, backupRoot: backupRoot, relativeTo: root)
 
     #expect(skippedResult.outcome == .skipped(reason: "not a .fountain file"))
     #expect(skippedResult.backup == nil)

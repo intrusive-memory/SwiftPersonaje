@@ -40,7 +40,8 @@ struct CharacterEvidenceTests {
       do {
         let windows = try await actor.fetchLineWindows(for: member, neighbours: 3)
         #expect(!windows.isEmpty, "no windows for \(member)")
-        let hasLine = windows.contains { window in window.blocks.contains(where: \.isCharacterLine) }
+        let hasLine = windows.contains { window in window.blocks.contains(where: \.isCharacterLine)
+        }
         #expect(hasLine, "no line block for \(member)")
       } catch DocumentModelActorError.speakerDataMissing(let titles) {
         Issue.record("speakerDataMissing on a fresh parse: \(titles)")
@@ -96,11 +97,15 @@ struct CharacterEvidenceTests {
     let lines = window.blocks.map(\.line)
     // ±3 blocks around TOBY's line 59, across the forced line at 62.
     #expect(lines == [51, 53, 56, 59, 62, 64, 66])
-    let tobyBefore = window.blocks.contains { $0.line == 59 && $0.speaker == "TOBY" && $0.isMemberLine }
+    let tobyBefore = window.blocks.contains {
+      $0.line == 59 && $0.speaker == "TOBY" && $0.isMemberLine
+    }
     #expect(tobyBefore)
     let actionAfter = window.blocks.contains { $0.line == 64 && $0.speaker == nil }
     #expect(actionAfter)
-    let pipAfter = window.blocks.contains { $0.line == 66 && $0.speaker == "PIP" && !$0.isMemberLine }
+    let pipAfter = window.blocks.contains {
+      $0.line == 66 && $0.speaker == "PIP" && !$0.isMemberLine
+    }
     #expect(pipAfter)
   }
 

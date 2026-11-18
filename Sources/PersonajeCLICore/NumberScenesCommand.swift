@@ -141,7 +141,8 @@ public struct NumberScenesCommand: AsyncParsableCommand {
             try Self.appendPersonajeToGitignore(in: root)
           } catch {
             throw ValidationError(
-              "Can't update \(root.path)/.gitignore: \(error.localizedDescription). Nothing was written.")
+              "Can't update \(root.path)/.gitignore: \(error.localizedDescription). Nothing was written."
+            )
           }
           report.gitignore = "added"
         }
@@ -242,7 +243,8 @@ public struct NumberScenesCommand: AsyncParsableCommand {
       lines.append(
         total == 0
           ? "Nothing to number."
-          : "Dry run: \(total) \(total == 1 ? "heading" : "headings") would be numbered; nothing written.")
+          : "Dry run: \(total) \(total == 1 ? "heading" : "headings") would be numbered; nothing written."
+      )
     } else if total == 0 && report.failed == 0 {
       lines.append("Nothing to number.")
     } else if total > 0 {
@@ -251,7 +253,9 @@ public struct NumberScenesCommand: AsyncParsableCommand {
       }
     }
     if report.failed > 0 {
-      lines.append("\(report.failed) \(report.failed == 1 ? "file" : "files") failed; each was left as it was.")
+      lines.append(
+        "\(report.failed) \(report.failed == 1 ? "file" : "files") failed; each was left as it was."
+      )
     }
     return lines.joined(separator: "\n") + "\n"
   }

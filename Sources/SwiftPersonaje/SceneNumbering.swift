@@ -73,7 +73,8 @@ public enum SceneNumbering {
         let line = String(decoding: units[start..<contentEnd], as: UTF16.self)
         if isSlugline(line) {
           found.append(
-            SceneHeading(lineIndex: lineIndex, offset: start, existingNumber: trailingNumber(of: line)))
+            SceneHeading(
+              lineIndex: lineIndex, offset: start, existingNumber: trailingNumber(of: line)))
         }
       }
 

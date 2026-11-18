@@ -20,7 +20,8 @@ struct SceneNumberingTests {
     let headings = SceneNumbering.numberedHeadings(in: text)
     #expect(headings.map(\.existingNumber) == [nil, nil, nil])
     #expect(headings.map(\.assignedNumber) == ["1", "2", "3"])
-    #expect(headings.allSatisfy(\.needsNumber))
+    let allNeedNumbers = headings.allSatisfy { $0.needsNumber }
+    #expect(allNeedNumbers)
   }
 
   @Test("All numbered: every number kept, nothing to write")
@@ -29,7 +30,8 @@ struct SceneNumberingTests {
     let headings = SceneNumbering.numberedHeadings(in: text)
     #expect(headings.map(\.existingNumber) == ["1", "2", "7"])
     #expect(headings.map(\.assignedNumber) == ["1", "2", "7"])
-    #expect(!headings.contains(where: \.needsNumber))
+    let anyNeedsNumber = headings.contains { $0.needsNumber }
+    #expect(!anyNeedsNumber)
   }
 
   @Test("Mixed 12, 12A, 13: gaps take the previous number plus a letter")
@@ -221,6 +223,7 @@ struct SceneNumberingTests {
         SceneHeading(lineIndex: 0, offset: 0, existingNumber: nil),
         SceneHeading(lineIndex: 2, offset: 8, existingNumber: "3"),
       ])
-    #expect(headings.allSatisfy { $0.assignedNumber == nil })
+    let noneAssigned = headings.allSatisfy { $0.assignedNumber == nil }
+    #expect(noneAssigned)
   }
 }

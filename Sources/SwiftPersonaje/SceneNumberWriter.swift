@@ -590,3 +590,251 @@ struct SceneNumberLine: Sendable, Equatable {
     return lines
   }
 }
+
+// MARK: - Writer (write half)
+
+/// What ``SceneNumberWriter/write(_:backupRoot:relativeTo:)`` did to one file.
+public struct SceneNumberResult: Sendable, Equatable {
+
+  public enum Outcome: Sendable, Equatable, Hashable {
+    /// The new bytes were written and read back equal; the original is in
+    /// ``SceneNumberResult/backup``.
+    case written
+    /// The plan had no changes (every heading already numbered): nothing was
+    /// written and no backup was made.
+    case unchanged
+    /// The plan skipped the file, for `reason`: nothing was written and no
+    /// backup was made.
+    case skipped(reason: String)
+  }
+
+  /// The screenplay file.
+  public let file: URL
+  public let outcome: Outcome
+  /// The byte-equal copy of the original, or `nil` when nothing was written.
+  public let backup: URL?
+  /// The headings numbered (empty unless ``outcome`` is ``Outcome/written``).
+  public let changes: [SceneNumberChange]
+
+  public init(file: URL, outcome: Outcome, backup: URL?, changes: [SceneNumberChange]) {
+    self.file = file
+    self.outcome = outcome
+    self.backup = backup
+    self.changes = changes
+  }
+
+  /// `true` when the file on disk now holds the plan's new bytes.
+  public var wroteFile: Bool { outcome == .written }
+}
+
+/// Why ``SceneNumberWriter/write(_:backupRoot:relativeTo:)`` didn't write a
+/// file. Unless the case says otherwise, the file on disk holds its original
+/// bytes when the error is thrown.
+public enum SceneNumberWriteError: Error, Sendable, Equatable, CustomStringConvertible {
+  /// The file couldn't be read before writing. Nothing was written.
+  case unreadable(file: URL, reason: String)
+  /// The file's bytes on disk are no longer the plan's ``SceneNumberPlan/originalData``
+  /// (it changed after it was planned). Nothing was written; re-plan it.
+  case changedOnDisk(file: URL)
+  /// The file isn't inside the project root it was to be backed up relative
+  /// to. Nothing was written and no backup was made.
+  case outsideProject(file: URL, projectRoot: URL)
+  /// Something already exists at the backup path. Nothing was written, and
+  /// the existing item was left alone.
+  case backupExists(file: URL, backup: URL)
+  /// The backup couldn't be made. Nothing was written.
+  case backupFailed(file: URL, backup: URL, reason: String)
+  /// SN-4: the backup's bytes differ from the original's. Nothing was written.
+  case backupMismatch(file: URL, backup: URL)
+  /// The atomic write threw. The original bytes are on disk (restored from
+  /// the backup if the failed write had touched them).
+  case writeFailed(file: URL, reason: String)
+  /// SN-6: the bytes read back after the write weren't the validated new
+  /// bytes. The original was restored from the backup and read back equal.
+  case verifyFailed(file: URL)
+  /// A write went wrong and restoring the original from `backup` failed too.
+  /// **The file on disk may be damaged**; `backup` holds the original bytes.
+  case restoreFailed(file: URL, backup: URL, reason: String)
+
+  public var description: String {
+    switch self {
+    case .unreadable(let file, let reason):
+      return "\(file.path): can't be read: \(reason)"
+    case .changedOnDisk(let file):
+      return "\(file.path): changed on disk since it was planned; nothing written"
+    case .outsideProject(let file, let projectRoot):
+      return "\(file.path): not inside the project \(projectRoot.path)"
+    case .backupExists(let file, let backup):
+      return "\(file.path): a backup already exists at \(backup.path); nothing written"
+    case .backupFailed(let file, let backup, let reason):
+      return "\(file.path): backup to \(backup.path) failed: \(reason); nothing written"
+    case .backupMismatch(let file, let backup):
+      return "\(file.path): the backup at \(backup.path) differs from the original; nothing written"
+    case .writeFailed(let file, let reason):
+      return "\(file.path): write failed: \(reason); the original is in place"
+    case .verifyFailed(let file):
+      return "\(file.path): the written bytes didn't read back as planned; the original was restored"
+    case .restoreFailed(let file, let backup, let reason):
+      return
+        "\(file.path): restore failed: \(reason); the file may be damaged, the original is at \(backup.path)"
+    }
+  }
+}
+
+extension SceneNumberWriter {
+
+  /// Writes `plan` to its file, safely.
+  ///
+  /// 1. A skipped plan, or one with no changes, returns at once: nothing is
+  ///    read or written and no backup (or backup directory) is made.
+  /// 2. The plan is re-checked by SN-5, and the file's bytes on disk must
+  ///    still equal ``SceneNumberPlan/originalData``; otherwise it throws
+  ///    ``SceneNumberWriteError/changedOnDisk(file:)`` and writes nothing.
+  /// 3. SN-4: the file is copied to `backupRoot/<relative path>` and the copy
+  ///    is read back and must equal the original bytes.
+  /// 4. The plan's ``SceneNumberPlan/newData`` is written atomically.
+  /// 5. SN-6: the file is read back; if it isn't `newData` byte for byte, the
+  ///    original is restored from the backup and the write throws
+  ///    ``SceneNumberWriteError/verifyFailed(file:)``.
+  ///
+  /// **The relative path.** With `projectRoot`, the backup goes to
+  /// `backupRoot` plus the file's path relative to `projectRoot` (for
+  /// `<project>/episodes/e1.fountain`, `backupRoot/episodes/e1.fountain`);
+  /// a file outside `projectRoot` throws
+  /// ``SceneNumberWriteError/outsideProject(file:projectRoot:)``. Without it,
+  /// the backup is `backupRoot/<file name>`, so two files with the same name
+  /// in different folders need a `projectRoot` (the second one throws
+  /// ``SceneNumberWriteError/backupExists(file:backup:)``). Paths are
+  /// compared after standardising and resolving symbolic links.
+  ///
+  /// The writer never chooses `backupRoot`, never deletes a backup and never
+  /// overwrites anything already in `backupRoot`.
+  ///
+  /// - Throws: ``SceneNumberWriteError``, or ``SceneNumberValidationError``
+  ///   when the plan fails SN-5.
+  @discardableResult
+  public static func write(_ plan: SceneNumberPlan, backupRoot: URL, relativeTo projectRoot: URL? = nil)
+    throws -> SceneNumberResult
+  {
+    try write(
+      plan, backupRoot: backupRoot, relativeTo: projectRoot,
+      fileSystem: DefaultSceneNumberFileSystem())
+  }
+
+  /// ``write(_:backupRoot:relativeTo:)`` through `fileSystem` (a test seam).
+  @discardableResult
+  static func write(
+    _ plan: SceneNumberPlan, backupRoot: URL, relativeTo projectRoot: URL?,
+    fileSystem fs: some SceneNumberFileSystem
+  ) throws -> SceneNumberResult {
+    let file = plan.file
+    if case .skipped(let reason) = plan.status {
+      return SceneNumberResult(file: file, outcome: .skipped(reason: reason), backup: nil, changes: [])
+    }
+    guard plan.hasChanges else {
+      return SceneNumberResult(file: file, outcome: .unchanged, backup: nil, changes: [])
+    }
+
+    try SceneNumberValidator.validate(plan)
+    let backup = try backupURL(for: file, backupRoot: backupRoot, projectRoot: projectRoot)
+    try requireOriginal(plan, fs)
+
+    // SN-4: back up, and check the copy.
+    guard !fs.itemExists(at: backup) else {
+      throw SceneNumberWriteError.backupExists(file: file, backup: backup)
+    }
+    do {
+      try fs.createDirectory(at: backup.deletingLastPathComponent())
+      try fs.copyItem(at: file, to: backup)
+    } catch {
+      throw SceneNumberWriteError.backupFailed(
+        file: file, backup: backup, reason: String(describing: error))
+    }
+    guard (try? fs.contents(of: backup)) == plan.originalData else {
+      throw SceneNumberWriteError.backupMismatch(file: file, backup: backup)
+    }
+
+    // The file may have changed while the backup was made.
+    try requireOriginal(plan, fs)
+
+    do {
+      try fs.writeAtomically(plan.newData, to: file)
+    } catch {
+      if (try? fs.contents(of: file)) != plan.originalData {
+        try restore(plan, from: backup, fs)
+      }
+      throw SceneNumberWriteError.writeFailed(file: file, reason: String(describing: error))
+    }
+
+    // SN-6: read back and compare to the validated bytes.
+    guard (try? fs.contents(of: file)) == plan.newData else {
+      try restore(plan, from: backup, fs)
+      throw SceneNumberWriteError.verifyFailed(file: file)
+    }
+    return SceneNumberResult(file: file, outcome: .written, backup: backup, changes: plan.changes)
+  }
+
+  /// Where `file` is backed up: `backupRoot` plus its path relative to
+  /// `projectRoot`, or plus its name when there is no `projectRoot`.
+  static func backupURL(for file: URL, backupRoot: URL, projectRoot: URL?) throws -> URL {
+    let relative: [String]
+    if let projectRoot {
+      let rootParts = projectRoot.standardizedFileURL.resolvingSymlinksInPath().pathComponents
+      let fileParts = file.standardizedFileURL.resolvingSymlinksInPath().pathComponents
+      guard fileParts.count > rootParts.count, Array(fileParts.prefix(rootParts.count)) == rootParts
+      else {
+        throw SceneNumberWriteError.outsideProject(file: file, projectRoot: projectRoot)
+      }
+      relative = Array(fileParts.dropFirst(rootParts.count))
+    } else {
+      relative = [file.lastPathComponent]
+    }
+    var url = backupRoot
+    for (index, part) in relative.enumerated() {
+      url.appendPathComponent(part, isDirectory: index < relative.count - 1)
+    }
+    return url
+  }
+
+  /// Throws unless the file's bytes on disk are the plan's original bytes.
+  private static func requireOriginal(_ plan: SceneNumberPlan, _ fs: some SceneNumberFileSystem)
+    throws
+  {
+    let current: Data
+    do {
+      current = try fs.contents(of: plan.file)
+    } catch {
+      throw SceneNumberWriteError.unreadable(file: plan.file, reason: String(describing: error))
+    }
+    guard current == plan.originalData else {
+      throw SceneNumberWriteError.changedOnDisk(file: plan.file)
+    }
+  }
+
+  /// Puts the backup's bytes back in the file and reads them back. Throws
+  /// ``SceneNumberWriteError/restoreFailed(file:backup:reason:)`` unless the
+  /// file then holds the original bytes.
+  private static func restore(
+    _ plan: SceneNumberPlan, from backup: URL, _ fs: some SceneNumberFileSystem
+  ) throws {
+    let file = plan.file
+    func fail(_ reason: String) -> SceneNumberWriteError {
+      .restoreFailed(file: file, backup: backup, reason: reason)
+    }
+    let saved: Data
+    do {
+      saved = try fs.contents(of: backup)
+    } catch {
+      throw fail("the backup can't be read: \(error)")
+    }
+    guard saved == plan.originalData else { throw fail("the backup differs from the original") }
+    do {
+      try fs.writeAtomically(saved, to: file)
+    } catch {
+      throw fail("the write threw: \(error)")
+    }
+    guard (try? fs.contents(of: file)) == plan.originalData else {
+      throw fail("the restored file doesn't read back as the original")
+    }
+  }
+}

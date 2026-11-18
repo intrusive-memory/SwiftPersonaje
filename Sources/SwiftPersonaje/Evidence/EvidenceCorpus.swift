@@ -147,6 +147,14 @@ public struct EvidenceCorpus: Sendable {
     return CharacterEvidence(member: member, items: items, windows: windows)
   }
 
+  /// ``evidence(for:neighbours:)`` with ``CharacterEvidence/accent``
+  /// resolved against the project `context` (VE-7).
+  public func evidence(
+    for member: String, context: ProjectContext, neighbours: Int = 3
+  ) async throws -> CharacterEvidence {
+    try await evidence(for: member, neighbours: neighbours).resolvingAccent(in: context)
+  }
+
   // MARK: - Action evidence (VE-2, VE-3, VE-4)
 
   /// Every speaker in the corpus, cleaned as SwiftCompartido cleans cues.

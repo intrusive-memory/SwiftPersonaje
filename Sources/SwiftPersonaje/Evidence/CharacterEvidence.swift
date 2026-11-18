@@ -151,11 +151,27 @@ public struct CharacterEvidence: Sendable, Equatable, Hashable, Codable {
   public let items: [EvidenceItem]
   /// The member's context windows, in the same order.
   public let windows: [EvidenceWindow]
+  /// The member's accent and where it came from (VE-7): the project's
+  /// `setting.accent`, or an accent their own introduction or group
+  /// statement names. `nil` when neither exists, or when evidence was built
+  /// without a ``ProjectContext``.
+  public let accent: MemberAccent?
 
-  public init(member: String, items: [EvidenceItem], windows: [EvidenceWindow]) {
+  public init(
+    member: String, items: [EvidenceItem], windows: [EvidenceWindow],
+    accent: MemberAccent? = nil
+  ) {
     self.member = member
     self.items = items
     self.windows = windows
+    self.accent = accent
+  }
+
+  /// This evidence with its accent resolved against `context` (VE-7).
+  public func resolvingAccent(in context: ProjectContext) -> CharacterEvidence {
+    CharacterEvidence(
+      member: member, items: items, windows: windows,
+      accent: AccentRules.accent(items: items, project: context.accent))
   }
 
   /// The dialogue items only.

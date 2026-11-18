@@ -54,6 +54,9 @@ public struct EvidenceCorpus: Sendable {
     var cue: String?
     var texts: [String]
     var isDialogue: Bool
+    /// `true` for an action paragraph (SwiftCompartido's `.action`), the
+    /// only blocks VE-2 to VE-4 read.
+    var isAction = false
 
     var text: String { texts.joined(separator: "\n") }
   }
@@ -106,7 +109,11 @@ public struct EvidenceCorpus: Sendable {
 
   // MARK: - Evidence
 
-  /// The dialogue and context windows of `member` across every episode.
+  /// The dialogue, introductions, group statements and context windows of
+  /// `member` across every episode.
+  ///
+  /// ``CharacterEvidence/items`` holds every kind, ordered by episode and
+  /// line; see ``actionItems(for:)`` for how action paragraphs are read.
   ///
   /// - Parameters:
   ///   - member: The member's `character` (or any cue of theirs; it is
@@ -135,8 +142,109 @@ public struct EvidenceCorpus: Sendable {
       }
       windows += Self.windows(around: lineBlocks, in: episode, radius: neighbours)
     }
+    items += actionItems(for: member)
     items.sort { (order($0.episode), $0.line) < (order($1.episode), $1.line) }
     return CharacterEvidence(member: member, items: items, windows: windows)
+  }
+
+  // MARK: - Action evidence (VE-2, VE-3, VE-4)
+
+  /// Every speaker in the corpus, cleaned as SwiftCompartido cleans cues.
+  var speakers: Set<String> {
+    Set(episodes.flatMap { $0.blocks.compactMap { $0.isDialogue ? $0.speaker : nil } })
+  }
+
+  /// The introduction and group-statement items of `member`, in corpus
+  /// order. Only action paragraphs are read.
+  ///
+  /// - A paragraph *names* a character when one of its capitalised names
+  ///   holds the character's cue as whole words (VE-3, ``CapitalisedNames``).
+  ///   The characters are every speaker in the corpus, plus `member`.
+  /// - **Introduction** (VE-2): the first paragraph in the corpus that names
+  ///   `member`, and every later one that names them and matches an age,
+  ///   ethnicity, build or voice pattern (``IntroductionPatterns``).
+  /// - **Group statement** (VE-4): a later paragraph naming `member` and at
+  ///   least one other character, without a description; or a paragraph that
+  ///   names no character, matches a group pattern (`They each…`) and sits
+  ///   in a scene (slugline to slugline, the scene rule) where `member` has
+  ///   a dialogue block.
+  func actionItems(for member: String) -> [EvidenceItem] {
+    let memberName = EvidenceCue.speaker(of: member)
+    let memberWords = CapitalisedNames.words(ofCue: memberName)
+    let characterWords = (speakers.union([memberName])).map { CapitalisedNames.words(ofCue: $0) }
+    var introduced = false
+    var items: [EvidenceItem] = []
+
+    for episode in episodes {
+      var speakersByScene: [Int: Set<String>] = [:]
+      for block in episode.blocks where block.isDialogue {
+        if let speaker = block.speaker { speakersByScene[block.scene, default: []].insert(speaker) }
+      }
+
+      for block in episode.blocks where block.isAction {
+        let text = Self.writtenText(of: block, in: episode)
+        let names = CapitalisedNames.names(in: text)
+        let namedCount = names.filter { name in
+          characterWords.contains { CapitalisedNames.name(name, matches: $0) }
+        }.count
+        let memberMatch = names.first { CapitalisedNames.name($0, matches: memberWords) }
+
+        let kind: EvidenceItem.Kind
+        if memberMatch != nil {
+          if !introduced {
+            introduced = true
+            kind = .introduction
+          } else if IntroductionPatterns.describesCharacter(text) {
+            kind = .introduction
+          } else if namedCount >= 2 {
+            kind = .groupStatement
+          } else {
+            continue
+          }
+        } else if namedCount == 0, IntroductionPatterns.refersToGroup(text),
+          speakersByScene[block.scene]?.contains(memberName) == true
+        {
+          kind = .groupStatement
+        } else {
+          continue
+        }
+
+        items.append(
+          EvidenceItem(
+            kind: kind,
+            episode: episode.name,
+            line: block.line + 1,
+            sceneNumber: SceneNumbering.numberForScene(atLine: block.line, in: episode.headings),
+            text: text,
+            matchedName: memberMatch?.written))
+      }
+    }
+    return items
+  }
+
+  /// An action paragraph's exact text in the file: its lines from the
+  /// block's line to the next blank line, trimmed, a forced-action `!`
+  /// removed. Falls back to SwiftCompartido's text when the file's line
+  /// doesn't hold it (an element that couldn't be placed).
+  static func writtenText(of block: Block, in episode: Episode) -> String {
+    var lines: [String] = []
+    var index = block.line
+    while index < episode.lines.count {
+      let line = episode.lines[index].trimmingCharacters(in: .whitespaces)
+      if line.isEmpty { break }
+      lines.append(line)
+      index += 1
+    }
+    if var first = lines.first, first.hasPrefix("!") {
+      first.removeFirst()
+      lines[0] = first
+    }
+    let firstPart =
+      block.text.split(separator: "\n").first.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+    guard let head = lines.first, !firstPart.isEmpty, head.contains(firstPart) else {
+      return block.text
+    }
+    return lines.joined(separator: "\n")
   }
 
   private func order(_ episode: String) -> Int {
@@ -296,7 +404,7 @@ public struct EvidenceCorpus: Sendable {
         blocks.append(
           Block(
             scene: scene, line: line, speaker: nil, cue: nil, texts: [element.elementText],
-            isDialogue: false))
+            isDialogue: false, isAction: element.elementType == .action))
       }
     }
     close()

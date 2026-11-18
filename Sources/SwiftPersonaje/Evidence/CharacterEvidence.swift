@@ -9,13 +9,23 @@ import Foundation
 /// speaker name survives.
 public struct EvidenceItem: Sendable, Equatable, Hashable, Codable {
 
-  /// What kind of evidence an item is. Later sorties add kinds
-  /// (introduction, name variant, group statement); the raw values are
-  /// stable strings, so encoded evidence stays readable as cases are added.
+  /// What kind of evidence an item is. The raw values are stable strings,
+  /// so encoded evidence stays readable as cases are added.
   public enum Kind: String, Sendable, Equatable, Hashable, Codable {
     /// A speech block of the character: cue, parentheticals and dialogue
     /// (VE-1).
     case dialogue
+    /// An action paragraph that introduces the character (VE-2): the first
+    /// action paragraph that names them in capitals, and every later one
+    /// that names them with an age, an ethnicity, a build or a description
+    /// of their voice. The name may be a longer variant of the cue (VE-3);
+    /// it is in ``EvidenceItem/matchedName``.
+    case introduction
+    /// An action paragraph about a group (VE-4): one that names this
+    /// character and others (and is not their introduction), or one that
+    /// names no one but speaks of a group (`They each…`), which counts for
+    /// every character who speaks in that scene.
+    case groupStatement
   }
 
   /// What kind of evidence this is.
@@ -41,6 +51,10 @@ public struct EvidenceItem: Sendable, Equatable, Hashable, Codable {
   public let extensions: [String]
   /// The block's parentheticals as written, parentheses included, in order.
   public let parentheticals: [String]
+  /// For an action item, the capitalised name that matched the character,
+  /// as written (`CONSTABLE HAROLD "HAL" BRISK` for cue `CONSTABLE`, VE-3).
+  /// `nil` for dialogue and for a group statement that names no one.
+  public let matchedName: String?
 
   public init(
     kind: Kind,
@@ -50,7 +64,8 @@ public struct EvidenceItem: Sendable, Equatable, Hashable, Codable {
     text: String,
     cue: String? = nil,
     extensions: [String] = [],
-    parentheticals: [String] = []
+    parentheticals: [String] = [],
+    matchedName: String? = nil
   ) {
     self.kind = kind
     self.episode = episode
@@ -60,6 +75,7 @@ public struct EvidenceItem: Sendable, Equatable, Hashable, Codable {
     self.cue = cue
     self.extensions = extensions
     self.parentheticals = parentheticals
+    self.matchedName = matchedName
   }
 }
 
@@ -123,7 +139,9 @@ public struct EvidenceWindow: Sendable, Equatable, Hashable, Codable {
 /// Everything the screenplays say about one cast member, each item with its
 /// source (VE-1, VE-5, VE-8).
 ///
-/// Built by ``EvidenceCorpus/evidence(for:neighbours:)``. Later sorties add
+/// Built by ``EvidenceCorpus/evidence(for:neighbours:)``. ``items`` holds
+/// dialogue, introductions and group statements together; ``dialogue``,
+/// ``introductions`` and ``groupStatements`` filter it. Later sorties add
 /// derived properties (tier, accent) beside these.
 public struct CharacterEvidence: Sendable, Equatable, Hashable, Codable {
   /// The member's `character` as CAST.md spells it.
@@ -142,6 +160,13 @@ public struct CharacterEvidence: Sendable, Equatable, Hashable, Codable {
 
   /// The dialogue items only.
   public var dialogue: [EvidenceItem] { items.filter { $0.kind == .dialogue } }
+
+  /// The introduction items only (VE-2), in order: the first is the
+  /// character's first appearance in capitals.
+  public var introductions: [EvidenceItem] { items.filter { $0.kind == .introduction } }
+
+  /// The group-statement items only (VE-4).
+  public var groupStatements: [EvidenceItem] { items.filter { $0.kind == .groupStatement } }
 }
 
 /// Cue parsing. SwiftCompartido's `cleanCharacterName` is internal and drops

@@ -10,9 +10,9 @@ One command per step from a name in the screenplay to a finished .dossier charac
 
 Each `personaje` command produces one file in a character's `.dossier` bundle and records enough to regenerate it. Bundles follow [dossier-format](https://github.com/intrusive-memory/dossier-format) and are written through [SwiftDossier](https://github.com/intrusive-memory/SwiftDossier). Images, voices and samples are made by the signed `vinetas`, `echada` and `diga` binaries.
 
-> **Status: early.** Two commands so far: `personaje cast-discover`, a
+> **Status: early.** Three commands so far: `personaje cast-discover`, a
 > report on the CAST.md discovery writer ([REQUIREMENTS.md](REQUIREMENTS.md)
-> §7.1), and `personaje number-scenes`. The rest is requirements only.
+> §7.1), `personaje number-scenes` and `personaje evidence`. The rest is requirements only.
 >
 > Requires SwiftReparto 0.4.0 (`canonicalName`, `lineCount`).
 
@@ -65,6 +65,27 @@ file fails, it is left as it was (restored from its backup if the write had
 started), the other files are still processed, and the command exits
 non-zero. `--json` prints the same report as JSON (`files[].status`,
 `count`, `headings`, `backup`; `backupDirectory`; `gitignore`; `failed`).
+
+## `personaje evidence`
+
+```
+personaje evidence <CHARACTER> [--project <dir>] [--json]
+```
+
+Everything the screenplays say about one CAST.md member, each item with its
+source. The text output gives the tier (the CAST.md `role` when set,
+otherwise computed from dialogue and scene share), the accent and where it
+came from, then the items grouped by kind (dialogue, introductions, group
+statements), each quoted with `<episode> sc <n>`.
+
+`CHARACTER` must be a CAST.md member; the match ignores case. An unknown name
+prints `unknown character: <NAME>` to stderr and exits non-zero. Read only.
+
+`--json` prints only JSON on stdout: `{"member", "role"?, "tier",
+"evidence"}`, where `evidence` is the `CharacterEvidence` Codable form
+(`member`, `items`, `windows`, `accent`). Context windows are emitted whole;
+the output stays under 12,000 characters (about 3k tokens) for every member of
+the test fixture.
 
 ## Build
 

@@ -51,7 +51,9 @@ public struct ProjectContext: Sendable, Equatable, Hashable, Codable {
   /// `setting.accent`, or `nil` when the project has no `setting` section.
   public let accent: String?
 
-  public init(title: String, genre: String? = nil, description: String? = nil, accent: String? = nil) {
+  public init(
+    title: String, genre: String? = nil, description: String? = nil, accent: String? = nil
+  ) {
     self.title = title
     self.genre = genre
     self.description = description

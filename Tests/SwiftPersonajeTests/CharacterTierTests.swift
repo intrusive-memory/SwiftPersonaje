@@ -56,7 +56,9 @@ struct CharacterTierTests {
     let corpus = try await EvidenceCorpus.load(screenplays: CharacterEvidenceTests.episodes)
     let evidence = try await corpus.evidence(for: "TOBY")
     let counts = evidence.tierCounts(in: corpus)
-    #expect(counts == CharacterTierCounts(memberBlocks: 1, totalBlocks: 31, memberScenes: 1, totalScenes: 11))
+    #expect(
+      counts
+        == CharacterTierCounts(memberBlocks: 1, totalBlocks: 31, memberScenes: 1, totalScenes: 11))
     #expect(evidence.tier(in: corpus) == .minor)
     #expect(evidence.tier(in: corpus, castRole: toby.role) == .major)
 

@@ -80,9 +80,11 @@ public struct EvidenceCorpus: Sendable {
         let store = DocumentModelActor(modelContainer: try CastDiscovery.makeContainer())
         let id = try await store.parseAndSaveDocument(from: url, parseGlosa: false)
         let elements = try await store.getElements(for: id)
-        episodes.append(episode(named: url.lastPathComponent, text: text, store: store, elements: elements))
+        episodes.append(
+          episode(named: url.lastPathComponent, text: text, store: store, elements: elements))
       } catch {
-        throw CastDiscoveryError.unreadableScreenplay(path: url.path, reason: String(describing: error))
+        throw CastDiscoveryError.unreadableScreenplay(
+          path: url.path, reason: String(describing: error))
       }
     }
     return EvidenceCorpus(episodes: episodes)

@@ -202,7 +202,8 @@ struct SceneNumberingTests {
 
   @Test("Lookup by position gives the scene's number without writing")
   func numberForSceneByOffset() throws {
-    let text = "Title text before.\n\nINT. BAKERY - DAY\n\nMARGOT\nHello.\n\nEXT. HARBOR #9#\n\nOSWIN\nBye.\n"
+    let text =
+      "Title text before.\n\nINT. BAKERY - DAY\n\nMARGOT\nHello.\n\nEXT. HARBOR #9#\n\nOSWIN\nBye.\n"
     let headings = SceneNumbering.numberedHeadings(in: text)
     let hello = try #require(text.range(of: "Hello.")).lowerBound.utf16Offset(in: text)
     let bye = try #require(text.range(of: "Bye.")).lowerBound.utf16Offset(in: text)

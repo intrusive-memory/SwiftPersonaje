@@ -2,7 +2,7 @@ import ArgumentParser
 
 /// The current `personaje` version.
 public enum PersonajeVersion {
-  public static let current = "0.2.0-dev"
+  public static let current = "0.3.0"
 }
 
 /// `personaje`: one command per step from a name in the screenplay to a
@@ -19,7 +19,7 @@ public struct PersonajeCommand: AsyncParsableCommand {
     subcommands: [
       CastDiscoverCommand.self,
       NumberScenesCommand.self,
-      EvidenceCommand.self
+      EvidenceCommand.self,
     ]
   )
 

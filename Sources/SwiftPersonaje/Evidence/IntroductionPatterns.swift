@@ -53,7 +53,8 @@ enum IntroductionPatterns {
     #"(?:\d{1,3}|(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:-(?:one|two|three|four|five|six|seven|eight|nine))?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)"#
 
   /// Small numbers for heights.
-  private static let small = #"(?:\d|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"#
+  private static let small =
+    #"(?:\d|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"#
 
   // MARK: Age
 
@@ -101,7 +102,8 @@ enum IntroductionPatterns {
   /// A height: `six-foot-five`, `5-foot`, `6'2"`.
   static let height = IntroductionPattern(
     category: .build, name: "height",
-    regex: #"(?:\b"# + small + #"[-\s]f(?:oo|ee)t(?:[-\s]"# + small + #")?\b|\b\d['’]\s?\d{1,2}["”])"#)
+    regex: #"(?:\b"# + small + #"[-\s]f(?:oo|ee)t(?:[-\s]"# + small
+      + #")?\b|\b\d['’]\s?\d{1,2}["”])"#)
 
   // MARK: Voice
 

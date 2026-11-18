@@ -81,7 +81,9 @@ struct SceneNumberPlanTests {
     #expect(plan.newText.contains("INT. WORKSHOP - DAY #1#\r\n"))
     #expect(plan.newText.contains("EXT. YARD - NIGHT #2#\r\n"))
     let units = Array(plan.newText.utf16)
-    let bareLineFeeds = units.indices.filter { units[$0] == 0x0A && ($0 == 0 || units[$0 - 1] != 0x0D) }
+    let bareLineFeeds = units.indices.filter {
+      units[$0] == 0x0A && ($0 == 0 || units[$0 - 1] != 0x0D)
+    }
     #expect(bareLineFeeds.isEmpty)
     #expect(strippedBytes(plan) == plan.originalData)
   }

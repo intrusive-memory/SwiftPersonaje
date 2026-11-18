@@ -87,7 +87,8 @@ extension EvidenceCorpus {
     var blocks = 0
     var scenes = Set<String>()
     for episode in episodes {
-      for block in episode.blocks where block.isDialogue && block.cue != nil && block.speaker == name {
+      for block in episode.blocks
+      where block.isDialogue && block.cue != nil && block.speaker == name {
         blocks += 1
         if block.scene >= 0 { scenes.insert("\(episode.name)#\(block.scene)") }
       }

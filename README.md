@@ -10,9 +10,9 @@ One command per step from a name in the screenplay to a finished .dossier charac
 
 Each `personaje` command produces one file in a character's `.dossier` bundle and records enough to regenerate it. Bundles follow [dossier-format](https://github.com/intrusive-memory/dossier-format) and are written through [SwiftDossier](https://github.com/intrusive-memory/SwiftDossier). Images, voices and samples are made by the signed `vinetas`, `echada` and `diga` binaries.
 
-> **Status: early.** One command so far: `personaje cast-discover`, a
+> **Status: early.** Three commands so far: `personaje cast-discover`, a
 > report on the CAST.md discovery writer ([REQUIREMENTS.md](REQUIREMENTS.md)
-> §7.1). The rest is requirements only.
+> §7.1), `personaje number-scenes` and `personaje evidence`. The rest is requirements only.
 >
 > Requires SwiftReparto 0.4.0 (`canonicalName`, `lineCount`).
 
@@ -41,6 +41,51 @@ SwiftCompartido `CharacterCollectionResult` you already have. The writer sets
 different names are never joined; only the derived `lineCount` is replaced.
 It writes when a member is added or a count changes, and otherwise leaves the
 file byte for byte as it was.
+
+## `personaje number-scenes`
+
+```
+personaje number-scenes [--project <dir>] [--dry-run] [--json]
+```
+
+Appends ` #n#` to every unnumbered slugline in the project's screenplays
+(the same files `cast-discover` reads). Numbers continue from the last
+numbered heading in the file; every other byte is kept as read.
+
+Each file that changes is first copied to
+`<project>/.personaje/backups/<timestamp>/<path relative to the project>`,
+where `<timestamp>` is UTC ISO 8601 basic form without colons
+(`20261118T120000Z`), one per run. Nothing is pruned. The first time there is
+something to number, `.personaje/` is appended to the project's `.gitignore`
+(created if needed) unless it already ignores it. The command never commits.
+
+`--dry-run` prints, per file, how many headings would be numbered and the new
+heading lines, and writes nothing: no file, no backup, no `.gitignore`. If a
+file fails, it is left as it was (restored from its backup if the write had
+started), the other files are still processed, and the command exits
+non-zero. `--json` prints the same report as JSON (`files[].status`,
+`count`, `headings`, `backup`; `backupDirectory`; `gitignore`; `failed`).
+
+## `personaje evidence`
+
+```
+personaje evidence <CHARACTER> [--project <dir>] [--json]
+```
+
+Everything the screenplays say about one CAST.md member, each item with its
+source. The text output gives the tier (the CAST.md `role` when set,
+otherwise computed from dialogue and scene share), the accent and where it
+came from, then the items grouped by kind (dialogue, introductions, group
+statements), each quoted with `<episode> sc <n>`.
+
+`CHARACTER` must be a CAST.md member; the match ignores case. An unknown name
+prints `unknown character: <NAME>` to stderr and exits non-zero. Read only.
+
+`--json` prints only JSON on stdout: `{"member", "role"?, "tier",
+"evidence"}`, where `evidence` is the `CharacterEvidence` Codable form
+(`member`, `items`, `windows`, `accent`). Context windows are emitted whole;
+the output stays under 12,000 characters (about 3k tokens) for every member of
+the test fixture.
 
 ## Build
 

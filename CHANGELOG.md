@@ -10,6 +10,45 @@ All notable changes to SwiftPersonaje are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-18
+
+### Added
+
+- **Scene numbering** (`SceneNumbering`, SN-1/SN-2): finds scene headings in a
+  screenplay. Only sluglines (`INT.`, `EXT.`, `INT./EXT.`, `EST.` plus
+  whitespace) start a scene; forced `.` lines, `[[ ]]` notes and `/* */`
+  boneyard never do. Existing `#n#` numbers win; new scenes are numbered 1…n,
+  lettered after an existing number (12A, 12B…), or `0A` before the first, skipping
+  numbers already used. A position lookup gives any line's scene number without
+  writing.
+- **Scene-number writer** (`SceneNumberWriter`, SN-3–SN-6): plans the ` #n#`
+  suffixes as a byte-level edit (no re-serialisation; encoding, byte-order mark
+  and line endings kept) and validates the plan three ways before anything is
+  written: stripping the suffixes gives the original bytes, only unnumbered
+  sluglines changed, and a SwiftCompartido re-parse matches. `write(_:backupRoot:relativeTo:)`
+  backs the original up and checks the copy, refuses a file changed since planning,
+  writes atomically, reads back, and restores the backup on a mismatch.
+- **Character evidence** (`EvidenceCorpus`, `CharacterEvidence`, VE-1–VE-8):
+  each member's dialogue (with V.O., O.S., PRELAP and other cue extensions and
+  parentheticals), ±3-block context windows clipped at the scene rule above,
+  introductions, whole-word name variants, and group statements ("They each…"
+  counts for everyone speaking in that scene). Every item cites its episode,
+  line and SN-1 scene number.
+- **Tier** (`CharacterTier`, VE-6): major at 8% of dialogue blocks or 15% of
+  scenes, otherwise minor; a CAST.md `role` wins. Reported only, never written.
+- **Project context and accent** (`ProjectContext`, `PersonajeSetting`,
+  VE-7): title, genre, description and `setting.accent` from PROJECT.md. A
+  member inherits the project accent unless their own evidence names a
+  different one.
+- **`personaje number-scenes [--project <dir>] [--dry-run] [--json]`** (SN-7):
+  numbers unnumbered sluglines in every episode, with backups under
+  `<project>/.personaje/backups/<timestamp>/`, and adds `.personaje/` to the
+  project's `.gitignore`. It never commits. `--dry-run` writes nothing.
+- **`personaje evidence <CHARACTER> [--project <dir>] [--json]`** (VE-9): a
+  member's evidence grouped by kind, with tier and accent. Unknown names exit
+  non-zero with `unknown character: <NAME>`.
+- Synthetic CC0 fixture project, `Tests/Fixtures/evidence-project/`.
+
 ## [0.2.0] - 2026-11-15
 
 ### Added

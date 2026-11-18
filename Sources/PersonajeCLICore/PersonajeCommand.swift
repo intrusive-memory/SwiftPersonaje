@@ -17,7 +17,8 @@ public struct PersonajeCommand: AsyncParsableCommand {
       """,
     version: PersonajeVersion.current,
     subcommands: [
-      CastDiscoverCommand.self
+      CastDiscoverCommand.self,
+      NumberScenesCommand.self
     ]
   )
 

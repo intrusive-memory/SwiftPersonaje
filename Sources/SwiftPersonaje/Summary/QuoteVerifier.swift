@@ -28,8 +28,8 @@ public enum QuoteVerdict: Sendable, Equatable, Codable {
 /// A quote is verified when, after normalization, it appears inside **one
 /// block** of the cited scene, starting and ending on word boundaries.
 ///
-/// - **Normalization** (``QuoteText/normalize(_:)``): curly quotes become
-///   straight; `--`, `—`, `–` and a spaced ` - ` become one dash; `…` becomes
+/// - **Normalization** (``QuoteText/normalize(_:)``): every quotation mark
+///   and apostrophe, single or double, curly or straight, becomes one mark; `--`, `—`, `–` and a spaced ` - ` become one dash; `…` becomes
 ///   `...`; Fountain emphasis (`*`, `_`) is dropped; every run of whitespace,
 ///   line breaks included, becomes one space. Case is kept: a quote is
 ///   verbatim or it is nothing.
@@ -114,10 +114,12 @@ public enum QuoteText {
   /// ``QuoteVerifier`` for the rule.
   public static func normalize(_ text: String) -> String {
     var result = text
+    // Every quotation mark and apostrophe, single or double, curly or
+    // straight, becomes `"`: models swap ‘’ for “” freely.
     for (from, to) in [
-      ("\u{2018}", "'"), ("\u{2019}", "'"), ("\u{201A}", "'"), ("\u{201B}", "'"),
-      ("\u{2032}", "'"), ("\u{201C}", "\""), ("\u{201D}", "\""), ("\u{201E}", "\""),
-      ("\u{2033}", "\""), ("\u{2026}", "..."), ("*", ""), ("_", ""),
+      ("\u{2018}", "\""), ("\u{2019}", "\""), ("\u{201A}", "\""), ("\u{201B}", "\""),
+      ("\u{2032}", "\""), ("'", "\""), ("\u{201C}", "\""), ("\u{201D}", "\""),
+      ("\u{201E}", "\""), ("\u{2033}", "\""), ("\u{2026}", "..."), ("*", ""), ("_", ""),
     ] {
       result = result.replacingOccurrences(of: from, with: to)
     }
@@ -132,7 +134,9 @@ public enum QuoteText {
   /// `quote` without one pair of surrounding quotation marks.
   static func unwrap(_ quote: String) -> String {
     let trimmed = quote.trimmingCharacters(in: .whitespacesAndNewlines)
-    let marks: [(Character, Character)] = [("\"", "\""), ("\u{201C}", "\u{201D}"), ("'", "'")]
+    let marks: [(Character, Character)] = [
+      ("\"", "\""), ("\u{201C}", "\u{201D}"), ("'", "'"), ("\u{2018}", "\u{2019}"),
+    ]
     for (open, close) in marks
     where trimmed.count >= 2 && trimmed.first == open && trimmed.last == close {
       return String(trimmed.dropFirst().dropLast())

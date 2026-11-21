@@ -49,6 +49,13 @@ struct QuoteVerifierTests {
     #expect(try await verify("\"Nothing for the lighthouse,\" she says.", Self.lamp, "3").isVerified)
   }
 
+  @Test("Single and double quotation marks match each other")
+  func singleAndDoubleQuotes() async throws {
+    #expect(try await verify("‘Nothing for the lighthouse,’ she says.", Self.lamp, "3").isVerified)
+    #expect(try await verify("'Nothing for the lighthouse,' she says.", Self.lamp, "3").isVerified)
+    #expect(try await verify("I don’t imagine.", Self.lamp, "1").isVerified)
+  }
+
   @Test("Any dash form matches any other: --, an em dash, an en dash, a spaced hyphen")
   func dashForms() async throws {
     for dash in [" -- ", "—", " — ", "–", " - "] {
@@ -151,7 +158,7 @@ struct QuoteVerifierTests {
 
   @Test("normalize folds quotes, dashes, ellipses, emphasis and whitespace")
   func normalize() {
-    #expect(QuoteText.normalize("It’s “fine” -- really…") == "It's \"fine\"—really...")
+    #expect(QuoteText.normalize("It’s “fine” -- really…") == "It\"s \"fine\"—really...")
     #expect(QuoteText.normalize("a  –  b\n\nc") == "a—b c")
     #expect(QuoteText.normalize("*Never* _again_") == "Never again")
     #expect(QuoteText.normalize("six-foot-five") == "six-foot-five")

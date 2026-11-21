@@ -23,6 +23,8 @@ struct CharacterSummaryPipelineTests {
       case (SummarySynthetic.lamp, "1"):
         return [
           CharacterFact(id: "x", statement: "Wren counts.", quote: "I count.", citation: bogus),
+          // A repeat, differing only in case and quotation marks: dropped.
+          CharacterFact(id: "x", statement: "wren counts.", quote: "“I count.”", citation: bogus),
           CharacterFact(
             id: "x", statement: "Wren imagines.", quote: "I imagine everything.", citation: bogus),
         ]
@@ -65,6 +67,12 @@ struct CharacterSummaryPipelineTests {
         SummarySynthetic.citation(Self.lamp, "1"), SummarySynthetic.citation(Self.lamp, "3"),
         SummarySynthetic.citation(Self.letter, "1"),
       ])
+  }
+
+  @Test("A fact repeated by the extractor is kept once")
+  func duplicatesAreDropped() async throws {
+    let run = try await run("WREN")
+    #expect(run.extractedFacts.filter { $0.statement.lowercased() == "wren counts." }.count == 1)
   }
 
   @Test("Facts get run-wide IDs and their chunk's citation, whatever the extractor said")

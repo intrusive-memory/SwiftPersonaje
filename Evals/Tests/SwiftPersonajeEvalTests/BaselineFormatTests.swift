@@ -15,15 +15,18 @@ struct BaselineFormatTests {
         1. “I don't imagine. I count.” → Wren trusts counting.
         - Wren: "I count." — Wren counts.
         "Nothing for the lighthouse," she says. Again. -> Wren expects post.
+        "WREN: My father kept this light for forty years." -> Wren's father kept the light.
         """)
     #expect(
       facts.map(\.quote) == [
         "The lamp’s been dark three nights running", "I don't imagine. I count.", "I count.",
         "\"Nothing for the lighthouse,\" she says. Again.",
+        "My father kept this light for forty years.",
       ])
     #expect(
       facts.map(\.statement) == [
         "Wren notices the lamp is out.", "Wren trusts counting.", "Wren counts.", "Wren expects post.",
+        "Wren's father kept the light.",
       ])
   }
 
@@ -95,8 +98,16 @@ struct BaselineFormatTests {
         QUOTE: MODERATOR: "Thank you, Mitch."
         FACT: Mitch keeps a list.
         QUOTE: Note: buy more ink.
+        FACT: Wren's father kept the light.
+        QUOTE: WREN: My father kept this light for forty years.
+        FACT: Otto speaks off screen.
+        QUOTE: OTTO (V.O.): She counts everything.
         """)
-    #expect(facts.map(\.quote) == ["\"Thank you, Mitch.\"", "Note: buy more ink."])
+    #expect(
+      facts.map(\.quote) == [
+        "\"Thank you, Mitch.\"", "Note: buy more ink.",
+        "My father kept this light for forty years.", "She counts everything.",
+      ])
   }
 
   @Test("NONE means no facts; anything else without a pair is a refusal")
@@ -141,5 +152,15 @@ struct BaselineFormatTests {
   @Test("An empty summary response is an error")
   func summaryRefusal() {
     #expect(throws: BaselineError.self) { try BaselineFormat.sentences(in: "  \n ") }
+  }
+}
+
+@Suite("Bruja responses (no model)")
+struct BrujaResponseTests {
+  @Test("A thinking block is removed, closed or left open at the end")
+  func thinkingIsRemoved() {
+    #expect(BrujaGenerator.withoutThinking("<think>hmm\nok</think>\nNONE") == "NONE")
+    #expect(BrujaGenerator.withoutThinking("\"I count.\" -> Wren counts.<think>more") == "\"I count.\" -> Wren counts.")
+    #expect(BrujaGenerator.withoutThinking("NONE") == "NONE")
   }
 }

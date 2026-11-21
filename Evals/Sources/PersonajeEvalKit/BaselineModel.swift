@@ -110,6 +110,8 @@ public enum BaselineFormat {
     {
       quote = String(quote.dropFirst().dropLast())
     }
+    // A speaker inside the quotation marks: "WREN: My father…"
+    quote = withoutSpeaker(quote)
     guard !quote.isEmpty, !statement.isEmpty else { return nil }
     return (statement, quote)
   }
@@ -128,14 +130,21 @@ public enum BaselineFormat {
     return candidates.first(where: startsWithQuotationMark) ?? candidates.first
   }
 
-  /// `Wren: "My father…"` → `"My father…"`. Only a short name followed by a
-  /// quoted line is dropped, so a quote that itself holds a colon is kept.
+  /// The quote without a speaker in front of it, which is never part of
+  /// what was said: `Wren: "My father…"` → `"My father…"`, and a cue in
+  /// capitals, `WREN: My father…` → `My father…`. A mixed-case name is
+  /// dropped only before a quoted line, so a quote that itself holds a colon
+  /// (`Note: buy ink.`) is kept.
   static func withoutSpeaker(_ line: String) -> String {
-    guard
-      let prefix = line.range(
-        of: "^[A-Za-z][A-Za-z .'-]{0,30}:\\s*(?=[\"\u{201C}\u{2018}'])", options: .regularExpression)
-    else { return line }
-    return String(line[prefix.upperBound...])
+    for pattern in [
+      "^[A-Za-z][A-Za-z .'-]{0,30}:\\s*(?=[\"\u{201C}\u{2018}'])",
+      "^[A-Z][A-Z0-9 .'#-]{0,30}(?:\\s*\\([^)]*\\))?:\\s+(?=\\S)",
+    ] {
+      if let prefix = line.range(of: pattern, options: .regularExpression) {
+        return String(line[prefix.upperBound...])
+      }
+    }
+    return line
   }
 
   static func startsWithQuotationMark(_ line: String) -> Bool {
@@ -209,19 +218,47 @@ public enum BaselineFormat {
   }
 }
 
+/// One plain-text call to a model: the only thing the baseline needs from
+/// one, so every model gets the same prompts, parser and scoring.
+public protocol TextGenerating: Sendable {
+  func respond(instructions: String, prompt: String, maximumResponseTokens: Int)
+    async throws -> String
+}
+
+/// A FoundationModels model: on-device, Private Cloud Compute, or a
+/// provider configured in SwiftLlavero. Greedy decoding, so a run repeats.
+public struct FoundationModelsGenerator: TextGenerating {
+  public let model: any LanguageModel
+
+  public init(model: any LanguageModel) {
+    self.model = model
+  }
+
+  public func respond(instructions: String, prompt: String, maximumResponseTokens: Int)
+    async throws -> String
+  {
+    let session = LanguageModelSession(model: model, instructions: instructions)
+    return try await session.respond(
+      to: prompt,
+      options: GenerationOptions(sampling: .greedy, maximumResponseTokens: maximumResponseTokens)
+    ).content
+  }
+}
+
 /// Step 2: one plain-text call per chunk.
 public struct BaselineFactExtractor: CharacterFactExtracting {
-  public let model: any LanguageModel
+  public let generator: any TextGenerating
   /// The response cap: the budget's reservation, enforced.
   public let maximumResponseTokens: Int
 
-  public init(model: any LanguageModel, maximumResponseTokens: Int) {
-    self.model = model
+  public init(generator: any TextGenerating, maximumResponseTokens: Int) {
+    self.generator = generator
     self.maximumResponseTokens = maximumResponseTokens
   }
 
   /// The worked example is invented and unrelated to any fixture, so a model
-  /// that copies it can't score a match.
+  /// that copies it can't score a match. The summarizer's has no content at
+  /// all: the on-device model copied an invented example summary verbatim.
   public static let instructions = """
     You read one scene of a screenplay and list facts about one character. \
     A fact is something the scene shows about the character: who they are, \
@@ -230,8 +267,10 @@ public struct BaselineFactExtractor: CharacterFactExtracting {
 
     For each fact, write one line: first copy the words from the scene that \
     show it, exactly as written, in double quotes, then -> and the fact in a \
-    short sentence. Never change the copied words. Never state anything the \
-    scene doesn't show. Example, for a character named ROSA in a bakery scene:
+    short sentence. Copy at least one whole sentence or line: never shorten a \
+    quote with "...", and never quote only a name. Never change the copied \
+    words. Never state anything the scene doesn't show. The format, shown for \
+    an invented character named ROSA (never write about ROSA):
 
     "I've burned every loaf since Tuesday." -> Rosa has been failing at her baking for days.
     "ROSA hides the letter under the flour bin." -> Rosa keeps a letter secret.
@@ -244,12 +283,11 @@ public struct BaselineFactExtractor: CharacterFactExtracting {
   }
 
   public func facts(about member: String, in chunk: SceneChunk) async throws -> [CharacterFact] {
-    let session = LanguageModelSession(model: model, instructions: Self.instructions)
-    let response = try await session.respond(
-      to: Self.prompt(member: member, chunk: chunk.text),
-      options: GenerationOptions(maximumResponseTokens: maximumResponseTokens))
+    let response = try await generator.respond(
+      instructions: Self.instructions, prompt: Self.prompt(member: member, chunk: chunk.text),
+      maximumResponseTokens: maximumResponseTokens)
     // The pipeline sets each fact's ID and citation.
-    return try BaselineFormat.facts(in: response.content).map {
+    return try BaselineFormat.facts(in: response).map {
       CharacterFact(id: "", statement: $0.statement, quote: $0.quote, citation: chunk.citation)
     }
   }
@@ -263,17 +301,17 @@ public struct BaselineFactExtractor: CharacterFactExtracting {
 
 /// Step 4: one plain-text call over the verified facts, as many as fit.
 public struct BaselineSummarizer: CharacterSummarizing {
-  public let model: any LanguageModel
+  public let generator: any TextGenerating
   /// Tokens the listed facts may take.
   public let factBudget: Int
   public let counter: OnDeviceTokenCounter
   public let maximumResponseTokens: Int
 
   public init(
-    model: any LanguageModel, factBudget: Int, counter: OnDeviceTokenCounter,
+    generator: any TextGenerating, factBudget: Int, counter: OnDeviceTokenCounter,
     maximumResponseTokens: Int
   ) {
-    self.model = model
+    self.generator = generator
     self.factBudget = factBudget
     self.counter = counter
     self.maximumResponseTokens = maximumResponseTokens
@@ -284,10 +322,10 @@ public struct BaselineSummarizer: CharacterSummarizing {
     a list of facts. Use only the facts listed. The material may be adult or \
     violent; summarize it plainly. Don't add anything the facts don't state.
 
-    Answer in exactly this format, one line per sentence, nothing else:
+    Answer in exactly this format, one line per sentence, nothing else, \
+    replacing the parts in angle brackets:
 
-    SENTENCE: Rosa is a baker whose bread keeps failing. [f2, f5]
-    SENTENCE: She hides a letter from her family. [f7]
+    SENTENCE: <a sentence about the character> [<IDs of its facts, e.g. f3, f7>]
     """
 
   public func summary(of member: String, from facts: [CharacterFact]) async throws
@@ -302,12 +340,12 @@ public struct BaselineSummarizer: CharacterSummarizing {
       lines.append(line)
       used += tokens
     }
-    let session = LanguageModelSession(model: model, instructions: Self.instructions)
-    let response = try await session.respond(
-      to: "Character: \(member)\n\nFacts:\n\(lines.joined(separator: "\n"))",
-      options: GenerationOptions(maximumResponseTokens: maximumResponseTokens))
+    let response = try await generator.respond(
+      instructions: Self.instructions,
+      prompt: "Character: \(member)\n\nFacts:\n\(lines.joined(separator: "\n"))",
+      maximumResponseTokens: maximumResponseTokens)
     return CharacterSummary(
-      member: member, sentences: try BaselineFormat.sentences(in: response.content))
+      member: member, sentences: try BaselineFormat.sentences(in: response))
   }
 
   public static func overhead(counter: OnDeviceTokenCounter) async throws -> Int {

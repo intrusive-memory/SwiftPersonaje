@@ -10,7 +10,7 @@ import SwiftPersonaje
 /// | `PERSONAJE_EVAL_PROJECT` | Project folder; episodes are `episodes/*.fountain` | the CC0 example in `Evals/Fixtures/example` |
 /// | `PERSONAJE_EVAL_FIXTURES` | Folder of `<CHARACTER>/` fixture folders | `<project>/evals/character-summaries` |
 /// | `PERSONAJE_EVAL_EPISODES` | Which files in `episodes/` to read: a glob | `*.fountain` |
-/// | `PERSONAJE_EVAL_MODEL` | `on-device`, `pcc`, or `account:model` | `on-device` |
+/// | `PERSONAJE_EVAL_MODEL` | `on-device`, `pcc`, `account:model`, or `bruja:<MLX model id>` | `on-device` |
 /// | `PERSONAJE_EVAL_REPORT_DIR` | Where reports are written | `Evals/.build/eval` |
 ///
 /// `make test-eval` passes these to the test runner (xcodebuild forwards
@@ -89,25 +89,39 @@ public enum BaselinePipeline {
   public static let onDeviceModel = SystemLanguageModel(
     useCase: .general, guardrails: .permissiveContentTransformations)
 
+  /// The account that selects a local MLX model through SwiftBruja.
+  public static let brujaAccount = "bruja"
+
   /// `configuration.model` as a line for reports.
   public static func describe(_ reference: ModelReference) -> String {
-    reference == .onDevice
-      ? "\(reference) (permissive guardrails)" : reference.description
+    if reference == .onDevice { return "\(reference) (permissive guardrails, greedy)" }
+    if reference.account == brujaAccount { return "\(reference) (MLX via SwiftBruja, greedy)" }
+    return "\(reference) (greedy)"
   }
 
-  /// The model to run. Every choice resolves through SwiftLlavero, which
+  /// The generator to run. `bruja:<id>` runs a local MLX model through
+  /// SwiftBruja. Every other choice resolves through SwiftLlavero, which
   /// checks it's available; for the on-device model, the permissive instance
   /// above replaces the default-guardrails model Llavero returns (Llavero has
   /// no guardrails option yet).
-  public static func model(for reference: ModelReference) async throws -> any LanguageModel {
+  public static func generator(for reference: ModelReference) async throws -> any TextGenerating {
+    if reference.account == brujaAccount {
+      // No availability pre-check: Acervo's `isModelAvailable` is a strict
+      // manifest audit that rejects models Bruja loads fine. Bruja reports
+      // a missing model itself on the first call.
+      guard let id = reference.model, !id.isEmpty else {
+        throw BrujaGeneratorError.noModel
+      }
+      return BrujaGenerator(modelID: id)
+    }
     let resolved = try await Llavero.standard.model(reference)
-    return reference == .onDevice ? onDeviceModel : resolved
+    return FoundationModelsGenerator(model: reference == .onDevice ? onDeviceModel : resolved)
   }
 
   public static func make(
     corpus: EvidenceCorpus, member: String, configuration: EvalConfiguration
   ) async throws -> CharacterSummaryPipeline {
-    let model = try await model(for: configuration.model)
+    let generator = try await generator(for: configuration.model)
     let counter = OnDeviceTokenCounter()
     let chunkBudget = ChunkBudget(
       contextSize: counter.contextSize, reservedForOutput: reservedForOutput,
@@ -117,9 +131,10 @@ public enum BaselinePipeline {
       - (try await BaselineSummarizer.overhead(counter: counter))
     return CharacterSummaryPipeline(
       corpus: corpus, chunker: SceneChunker(budget: chunkBudget, counter: counter),
-      extractor: BaselineFactExtractor(model: model, maximumResponseTokens: reservedForOutput),
+      extractor: BaselineFactExtractor(
+        generator: generator, maximumResponseTokens: reservedForOutput),
       summarizer: BaselineSummarizer(
-        model: model, factBudget: factBudget, counter: counter,
+        generator: generator, factBudget: factBudget, counter: counter,
         maximumResponseTokens: reservedForOutput))
   }
 }

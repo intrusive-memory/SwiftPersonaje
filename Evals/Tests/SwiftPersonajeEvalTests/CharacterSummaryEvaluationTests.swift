@@ -39,9 +39,16 @@ struct CharacterSummaryEvaluation: Evaluation {
   var dataset: ArrayLoader<CharacterSample> { ArrayLoader(samples: samples) }
 
   func subject(from sample: CharacterSample) async throws -> ModelSubject<CharacterSummaryRun> {
-    let pipeline = try await BaselinePipeline.make(
-      corpus: corpus, member: sample.input, configuration: configuration)
-    let run = try await pipeline.run(for: sample.input)
+    let run: CharacterSummaryRun
+    do {
+      let pipeline = try await BaselinePipeline.make(
+        corpus: corpus, member: sample.input, configuration: configuration)
+      run = try await pipeline.run(for: sample.input)
+    } catch {
+      // The framework counts the failure but drops the error; say what it was.
+      print("\(sample.input): run failed: \(error)")
+      throw error
+    }
     await log.record(
       run, EvalScoring.score(run, against: sample.fixture, verifier: QuoteVerifier(corpus: corpus)))
     return ModelSubject(value: run)

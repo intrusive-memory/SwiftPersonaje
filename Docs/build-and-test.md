@@ -73,10 +73,23 @@ keeps a compiled full script there, which would count every scene twice.
 | `PROJECT` | Folder holding `episodes/*.fountain` | `Evals/Fixtures/example` |
 | `FIXTURES` | Folder of `<CHARACTER>/` fixture folders | `$PROJECT/evals/character-summaries` |
 | `EPISODES` | Glob over the files in `episodes/` | `*.fountain` |
-| `MODEL` | `on-device`, `pcc`, or a configured `account:model` | `on-device` |
+| `MODEL` | `on-device`, `pcc`, a configured `account:model`, or `bruja:<MLX model id>` | `on-device` |
 
 Token budgets are measured with the on-device tokenizer whatever `MODEL`
-is: its context is the smallest, so a chunk that fits it fits the others.
+is: its context is the smallest, so a chunk that fits it fits the others,
+and every model sees the same chunks.
+
+Every model runs with greedy decoding, so a run repeats and two models can
+be compared. `bruja:<id>` runs a local MLX model in-process through
+SwiftBruja (temperature 0, thinking off); download it first with
+`bruja download -m <id>`. The Makefile passes `ACERVO_APP_GROUP_ID`
+(default `group.intrusive-memory.models`) so the test runner finds the
+shared models.
+
+```
+make test-eval PROJECT=~/Projects/podcasts/mr-mr-charles EPISODES='0*.fountain' \
+  MODEL=bruja:mlx-community/Qwen3.5-9B-MLX-4bit
+```
 
 ### Fixtures
 

@@ -121,6 +121,24 @@ struct CharacterSummaryPipelineTests {
     #expect(run.quoteVerificationRate == nil)
   }
 
+  struct FailingSummarizer: CharacterSummarizing {
+    func summary(of member: String, from facts: [CharacterFact]) async throws -> CharacterSummary {
+      throw StubFailure()
+    }
+  }
+
+  @Test("A summarizer that throws is recorded; the run keeps its facts")
+  func summaryFailureIsRecorded() async throws {
+    let pipeline = CharacterSummaryPipeline(
+      corpus: try await SummarySynthetic.corpus(),
+      chunker: SceneChunker(budget: Self.roomy, counter: WordCounter()),
+      extractor: StubExtractor(), summarizer: FailingSummarizer())
+    let run = try await pipeline.run(for: "WREN")
+    #expect(run.summaryFailure == "stub failure")
+    #expect(run.summary == nil && run.traceability == nil)
+    #expect(run.verifiedFacts.map(\.id) == ["f1", "f3"])
+  }
+
   @Test("A run round-trips through JSON, for the evaluation report")
   func runIsCodable() async throws {
     let run = try await run("WREN")

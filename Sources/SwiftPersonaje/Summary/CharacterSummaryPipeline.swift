@@ -26,11 +26,13 @@ public struct CharacterSummaryRun: Sendable, Equatable, Codable {
   /// `nil` when no fact verified: nothing is summarized from nothing.
   public let summary: CharacterSummary?
   public let traceability: TraceabilityReport?
+  /// The summarizer's error, when it threw: the run keeps its facts.
+  public let summaryFailure: String?
 
   public init(
     member: String, chunks: [SceneChunk], extractedFacts: [CharacterFact],
     verifiedFacts: [CharacterFact], droppedFacts: [DroppedFact], chunkFailures: [ChunkFailure],
-    summary: CharacterSummary?, traceability: TraceabilityReport?
+    summary: CharacterSummary?, traceability: TraceabilityReport?, summaryFailure: String? = nil
   ) {
     self.member = member
     self.chunks = chunks
@@ -40,6 +42,7 @@ public struct CharacterSummaryRun: Sendable, Equatable, Codable {
     self.chunkFailures = chunkFailures
     self.summary = summary
     self.traceability = traceability
+    self.summaryFailure = summaryFailure
   }
 
   /// Verified facts over extracted facts; `nil` when none were extracted.
@@ -81,9 +84,9 @@ public struct CharacterSummaryPipeline: Sendable {
     self.summarizer = summarizer
   }
 
-  /// - Throws: ``SceneChunkerError`` when the scenes can't be chunked, and
-  ///   whatever the summarizer throws. Extractor errors are recorded per
-  ///   chunk instead.
+  /// - Throws: ``SceneChunkerError`` when the scenes can't be chunked.
+  ///   Extractor errors are recorded per chunk, and a summarizer error in
+  ///   ``CharacterSummaryRun/summaryFailure``.
   public func run(for member: String) async throws -> CharacterSummaryRun {
     let chunks = try await chunker.chunks(of: corpus.scenes(featuring: member))
 
@@ -110,16 +113,22 @@ public struct CharacterSummaryPipeline: Sendable {
     let (verified, dropped) = QuoteVerifier(corpus: corpus).partition(extracted)
     var summary: CharacterSummary?
     var traceability: TraceabilityReport?
+    var summaryFailure: String?
     if !verified.isEmpty {
-      let written = try await summarizer.summary(of: member, from: verified)
-      summary = written
-      traceability = SummaryTraceability.check(written, facts: verified)
+      do {
+        let written = try await summarizer.summary(of: member, from: verified)
+        summary = written
+        traceability = SummaryTraceability.check(written, facts: verified)
+      } catch {
+        summaryFailure = String(describing: error)
+      }
     }
 
     return CharacterSummaryRun(
       member: member, chunks: chunks, extractedFacts: extracted, verifiedFacts: verified,
       droppedFacts: dropped.map { DroppedFact(fact: $0.fact, verdict: $0.verdict) },
-      chunkFailures: failures, summary: summary, traceability: traceability)
+      chunkFailures: failures, summary: summary, traceability: traceability,
+      summaryFailure: summaryFailure)
   }
 }
 

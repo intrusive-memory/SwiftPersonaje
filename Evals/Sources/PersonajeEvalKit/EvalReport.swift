@@ -46,7 +46,7 @@ public struct EvalReport: Sendable, Codable {
     func cell(_ value: Double?) -> String { value.map { String(format: "%.2f", $0) } ?? "—" }
     var lines = [
       "Character summaries — \(model) — \(operatingSystem)",
-      "character  fixture  chunks  facts  verified  quote-rate  precision  recall  halluc.  traceable  gold-cov.",
+      "character  fixture  chunks  failed  facts  verified  quote-rate  precision  recall  halluc.  traceable  gold-cov.",
     ]
     for s in scores {
       lines.append(
@@ -54,6 +54,7 @@ public struct EvalReport: Sendable, Codable {
           s.member.padding(toLength: 9, withPad: " ", startingAt: 0),
           (s.fixtureComplete ? "ready" : "TODO").padding(toLength: 7, withPad: " ", startingAt: 0),
           String(s.chunks).padding(toLength: 6, withPad: " ", startingAt: 0),
+          String(s.chunkFailures).padding(toLength: 6, withPad: " ", startingAt: 0),
           String(s.extractedFacts).padding(toLength: 5, withPad: " ", startingAt: 0),
           String(s.verifiedFacts).padding(toLength: 8, withPad: " ", startingAt: 0),
           cell(s.quoteVerificationRate).padding(toLength: 10, withPad: " ", startingAt: 0),

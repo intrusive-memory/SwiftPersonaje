@@ -77,14 +77,37 @@ public enum EvalGate {
 /// Builds the baseline pipeline for `configuration`.
 public enum BaselinePipeline {
 
-  /// Tokens kept free for a response, and the cap on every response: an
-  /// uncapped response ran one token past an 8,192 context on a long scene.
-  public static let reservedForOutput = 1_536
+  /// Tokens kept free for a response, and the cap on every response. Kept
+  /// generous: the scenes are dense, a cut-off response loses every fact
+  /// after the cut, and a larger reservation only means smaller chunks and
+  /// more calls.
+  public static let reservedForOutput = 3_072
+
+  /// The on-device model as the evaluation runs it: permissive guardrails,
+  /// so the scripts' adult and violent scenes are read rather than refused.
+  /// They apply to `String` responses only (see `BaselineModel.swift`).
+  public static let onDeviceModel = SystemLanguageModel(
+    useCase: .general, guardrails: .permissiveContentTransformations)
+
+  /// `configuration.model` as a line for reports.
+  public static func describe(_ reference: ModelReference) -> String {
+    reference == .onDevice
+      ? "\(reference) (permissive guardrails)" : reference.description
+  }
+
+  /// The model to run. Every choice resolves through SwiftLlavero, which
+  /// checks it's available; for the on-device model, the permissive instance
+  /// above replaces the default-guardrails model Llavero returns (Llavero has
+  /// no guardrails option yet).
+  public static func model(for reference: ModelReference) async throws -> any LanguageModel {
+    let resolved = try await Llavero.standard.model(reference)
+    return reference == .onDevice ? onDeviceModel : resolved
+  }
 
   public static func make(
     corpus: EvidenceCorpus, member: String, configuration: EvalConfiguration
   ) async throws -> CharacterSummaryPipeline {
-    let model = try await Llavero.standard.model(configuration.model)
+    let model = try await model(for: configuration.model)
     let counter = OnDeviceTokenCounter()
     let chunkBudget = ChunkBudget(
       contextSize: counter.contextSize, reservedForOutput: reservedForOutput,

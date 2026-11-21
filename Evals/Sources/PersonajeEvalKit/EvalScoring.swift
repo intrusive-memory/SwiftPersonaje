@@ -8,6 +8,8 @@ public struct CharacterScores: Sendable, Equatable, Codable {
   public let fixtureComplete: Bool
   public let chunks: Int
   public let chunkFailures: Int
+  /// The summarizer's error, when it threw.
+  public let summaryFailure: String?
   public let extractedFacts: Int
   public let verifiedFacts: Int
   /// Verified over extracted.
@@ -81,7 +83,8 @@ public enum EvalScoring {
 
     return CharacterScores(
       member: run.member, fixtureComplete: complete, chunks: run.chunks.count,
-      chunkFailures: run.chunkFailures.count, extractedFacts: run.extractedFacts.count,
+      chunkFailures: run.chunkFailures.count, summaryFailure: run.summaryFailure,
+      extractedFacts: run.extractedFacts.count,
       verifiedFacts: run.verifiedFacts.count, quoteVerificationRate: run.quoteVerificationRate,
       precision: precision, recall: recall, hallucinations: hallucinations,
       summaryTraceability: run.traceability?.rate, goldSummaryCoverage: coverage,

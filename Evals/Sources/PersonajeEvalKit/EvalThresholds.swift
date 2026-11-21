@@ -35,6 +35,9 @@ public enum EvalThresholds {
         "\(scores.member): gold facts whose quotes don't verify (fix the fixture): \(scores.invalidGoldFactIDs.joined(separator: ", "))"
       )
     }
+    if let failure = scores.summaryFailure {
+      result.append("\(scores.member): no summary: \(failure)")
+    }
     if scores.extractedFacts == 0 && scores.chunks > 0 {
       result.append("\(scores.member): no facts extracted from \(scores.chunks) chunks")
     }

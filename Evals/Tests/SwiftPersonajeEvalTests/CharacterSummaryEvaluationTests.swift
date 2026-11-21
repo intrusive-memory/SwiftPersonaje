@@ -112,12 +112,12 @@ struct CharacterSummaryEvaluationTests {
       samples: fixtures.map(CharacterSample.init), corpus: corpus,
       configuration: configuration, log: log)
     let result = try await evaluation.run(info: [
-      "model": configuration.model.description,
+      "model": BaselinePipeline.describe(configuration.model),
       "os": ProcessInfo.processInfo.operatingSystemVersionString,
     ])
 
     let report = EvalReport(
-      model: configuration.model.description, project: configuration.project.lastPathComponent,
+      model: BaselinePipeline.describe(configuration.model), project: configuration.project.lastPathComponent,
       scores: await log.scores, runs: await log.runs)
     let reportURL = try report.write(to: configuration.reports)
     let frameworkURL = try result.saveJSON(

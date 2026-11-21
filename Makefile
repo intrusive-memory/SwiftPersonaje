@@ -44,6 +44,7 @@ test:
 # Needs Apple Intelligence on this Mac. See Docs/build-and-test.md.
 #   PROJECT=<folder holding episodes/>   default: the CC0 example in Evals/Fixtures
 #   FIXTURES=<folder of CHARACTER/ dirs> default: $$PROJECT/evals/character-summaries
+#   EPISODES=<glob over episodes/>       default: *.fountain
 #   MODEL=on-device | pcc | account:model  default: on-device
 # Reports go to .build/eval/.
 EVAL_DIR = Evals
@@ -54,6 +55,7 @@ test-eval:
 	cd $(EVAL_DIR) && \
 	  TEST_RUNNER_PERSONAJE_EVAL_PROJECT="$(PROJECT)" \
 	  TEST_RUNNER_PERSONAJE_EVAL_FIXTURES="$(FIXTURES)" \
+	  TEST_RUNNER_PERSONAJE_EVAL_EPISODES="$(EPISODES)" \
 	  TEST_RUNNER_PERSONAJE_EVAL_MODEL="$(or $(MODEL),on-device)" \
 	  TEST_RUNNER_PERSONAJE_EVAL_REPORT_DIR="$(CURDIR)/.build/eval" \
 	  xcodebuild test -scheme $(EVAL_SCHEME) \

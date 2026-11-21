@@ -55,6 +55,14 @@ struct EvalScoringTests {
     }
   }
 
+  @Test("PERSONAJE_EVAL_EPISODES picks which episode files are read")
+  func episodePattern() throws {
+    let all = try EvalConfiguration.fromEnvironment([:]).episodes()
+    #expect(all.map(\.lastPathComponent) == [Self.lamp, Self.letter])
+    let one = try EvalConfiguration.fromEnvironment(["PERSONAJE_EVAL_EPISODES": "01-*.fountain"])
+    #expect(try one.episodes().map(\.lastPathComponent) == [Self.lamp])
+  }
+
   @Test("A fixture with a TODO marker is not complete")
   func todoMarksIncomplete() {
     let fixture = CharacterFixture(

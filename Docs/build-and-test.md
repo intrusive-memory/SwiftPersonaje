@@ -62,12 +62,17 @@ scoring tests in the same target run either way.
 make test-eval                                            # the CC0 example (WREN)
 make test-eval PROJECT=~/Projects/podcasts/granville      # Granville's fixtures
 make test-eval PROJECT=~/Projects/podcasts/granville MODEL=pcc
+make test-eval PROJECT=~/Projects/podcasts/mr-mr-charles EPISODES='0*.fountain'
 ```
+
+Use `EPISODES` when `episodes/` holds more than the episodes: mr-mr-charles
+keeps a compiled full script there, which would count every scene twice.
 
 | Variable | Meaning | Default |
 |---|---|---|
 | `PROJECT` | Folder holding `episodes/*.fountain` | `Evals/Fixtures/example` |
 | `FIXTURES` | Folder of `<CHARACTER>/` fixture folders | `$PROJECT/evals/character-summaries` |
+| `EPISODES` | Glob over the files in `episodes/` | `*.fountain` |
 | `MODEL` | `on-device`, `pcc`, or a configured `account:model` | `on-device` |
 
 Token budgets are measured with the on-device tokenizer whatever `MODEL`

@@ -43,9 +43,12 @@ struct GeneratedSentence {
 /// Step 2: one guided-generation call per chunk.
 public struct BaselineFactExtractor: CharacterFactExtracting {
   public let model: any LanguageModel
+  /// The response cap: the budget's reservation, enforced.
+  public let maximumResponseTokens: Int
 
-  public init(model: any LanguageModel) {
+  public init(model: any LanguageModel, maximumResponseTokens: Int) {
     self.model = model
+    self.maximumResponseTokens = maximumResponseTokens
   }
 
   public static let instructions = """
@@ -63,7 +66,8 @@ public struct BaselineFactExtractor: CharacterFactExtracting {
   public func facts(about member: String, in chunk: SceneChunk) async throws -> [CharacterFact] {
     let session = LanguageModelSession(model: model, instructions: Self.instructions)
     let response = try await session.respond(
-      to: Self.prompt(member: member, chunk: chunk.text), generating: ExtractedFacts.self)
+      to: Self.prompt(member: member, chunk: chunk.text), generating: ExtractedFacts.self,
+      options: GenerationOptions(maximumResponseTokens: maximumResponseTokens))
     // The pipeline sets each fact's ID and citation.
     return response.content.facts.map {
       CharacterFact(id: "", statement: $0.statement, quote: $0.quote, citation: chunk.citation)
@@ -73,7 +77,7 @@ public struct BaselineFactExtractor: CharacterFactExtracting {
   /// Tokens the instructions, the schema and the prompt's own wording take.
   public static func overhead(member: String, counter: OnDeviceTokenCounter) async throws -> Int {
     let model = SystemLanguageModel.default
-    return try await model.tokenCount(for: instructions)
+    return try await model.tokenCount(for: Instructions(instructions))
       + model.tokenCount(for: ExtractedFacts.generationSchema)
       + counter.tokenCount(for: prompt(member: member, chunk: ""))
   }
@@ -85,11 +89,16 @@ public struct BaselineSummarizer: CharacterSummarizing {
   /// Tokens the listed facts may take.
   public let factBudget: Int
   public let counter: OnDeviceTokenCounter
+  public let maximumResponseTokens: Int
 
-  public init(model: any LanguageModel, factBudget: Int, counter: OnDeviceTokenCounter) {
+  public init(
+    model: any LanguageModel, factBudget: Int, counter: OnDeviceTokenCounter,
+    maximumResponseTokens: Int
+  ) {
     self.model = model
     self.factBudget = factBudget
     self.counter = counter
+    self.maximumResponseTokens = maximumResponseTokens
   }
 
   public static let instructions = """
@@ -113,7 +122,8 @@ public struct BaselineSummarizer: CharacterSummarizing {
     let session = LanguageModelSession(model: model, instructions: Self.instructions)
     let response = try await session.respond(
       to: "Character: \(member)\n\nFacts:\n\(lines.joined(separator: "\n"))",
-      generating: GeneratedSummary.self)
+      generating: GeneratedSummary.self,
+      options: GenerationOptions(maximumResponseTokens: maximumResponseTokens))
     return CharacterSummary(
       member: member,
       sentences: response.content.sentences.map {
@@ -123,7 +133,7 @@ public struct BaselineSummarizer: CharacterSummarizing {
 
   public static func overhead(counter: OnDeviceTokenCounter) async throws -> Int {
     let model = SystemLanguageModel.default
-    return try await model.tokenCount(for: instructions)
+    return try await model.tokenCount(for: Instructions(instructions))
       + model.tokenCount(for: GeneratedSummary.generationSchema) + 32
   }
 }

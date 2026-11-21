@@ -35,6 +35,10 @@ public enum EvalThresholds {
         "\(scores.member): gold facts whose quotes don't verify (fix the fixture): \(scores.invalidGoldFactIDs.joined(separator: ", "))"
       )
     }
+    if let returned = scores.summarySentencesReturned {
+      result.append(
+        "\(scores.member): summary ran to \(returned) sentences; asked for 2 or 3, kept 3")
+    }
     if let failure = scores.summaryFailure {
       result.append("\(scores.member): no summary: \(failure)")
     }

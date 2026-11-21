@@ -20,8 +20,12 @@ public struct CharacterScores: Sendable, Equatable, Codable {
   public let recall: Double?
   /// IDs of the `must-not-say` claims the facts or the summary made.
   public let hallucinations: [String]?
-  /// Supported summary sentences over summary sentences.
+  /// Supported summary sentences over summary sentences. A sentence that
+  /// cites no fact is unsupported.
   public let summaryTraceability: Double?
+  /// How many sentences the summarizer wrote, when it wrote more than the
+  /// two or three asked for (the summary keeps three).
+  public let summarySentencesReturned: Int?
   /// Sentences of the hand-written summary that the run's verified facts
   /// support, over its sentences. Informational; no threshold.
   public let goldSummaryCoverage: Double?
@@ -87,7 +91,8 @@ public enum EvalScoring {
       extractedFacts: run.extractedFacts.count,
       verifiedFacts: run.verifiedFacts.count, quoteVerificationRate: run.quoteVerificationRate,
       precision: precision, recall: recall, hallucinations: hallucinations,
-      summaryTraceability: run.traceability?.rate, goldSummaryCoverage: coverage,
+      summaryTraceability: run.traceability?.rate,
+      summarySentencesReturned: run.summary?.returnedSentenceCount, goldSummaryCoverage: coverage,
       unmatchedFactIDs: complete ? unmatched.map(\.id) : [],
       missedGoldFactIDs: complete ? missed.map(\.id) : [],
       invalidGoldFactIDs: complete ? invalidGold.map(\.id) : [])

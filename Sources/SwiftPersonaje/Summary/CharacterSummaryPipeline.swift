@@ -64,7 +64,8 @@ public struct CharacterSummaryRun: Sendable, Equatable, Codable {
 /// 3. **Verify.** ``QuoteVerifier`` checks every quote; facts that fail are
 ///    dropped.
 /// 4. **Summarize** from the verified facts only, then
-///    ``SummaryTraceability`` checks every sentence.
+///    ``SummaryTraceability`` checks every sentence; one that cites no fact
+///    is unsupported.
 ///
 /// No step trusts the model: the pipeline is model-free, and the model sits
 /// behind the two protocols.
@@ -118,7 +119,10 @@ public struct CharacterSummaryPipeline: Sendable {
       do {
         let written = try await summarizer.summary(of: member, from: verified)
         summary = written
-        traceability = SummaryTraceability.check(written, facts: verified)
+        // The summarizer is asked to cite (CharacterSummarizing): a sentence
+        // that cites nothing is unsupported.
+        traceability = SummaryTraceability.check(
+          written, facts: verified, requireCitations: true)
       } catch {
         summaryFailure = String(describing: error)
       }

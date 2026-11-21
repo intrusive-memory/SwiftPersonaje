@@ -126,7 +126,7 @@ Per character:
 | precision | verified facts matching a gold or acceptable fact, over verified facts | 0.3 |
 | recall | gold facts matched by a verified fact, over gold facts | 0.2 |
 | hallucinations | `must-not-say` claims found in a verified fact's statement or the summary | 0, always |
-| summary traceability | summary sentences with a supporting fact, over sentences | 0.5 |
+| summary traceability | summary sentences with a supporting fact, over sentences; a sentence that cites no fact is unsupported | 0.5 |
 | gold summary coverage | sentences of `gold-summary.md` the run's facts support | none |
 
 A run's fact matches a gold fact when both cite the same scene and their
@@ -136,6 +136,12 @@ The bars are in `Evals/Sources/PersonajeEvalKit/EvalThresholds.swift`. They
 start loose; tighten them after the first runs. A missed bar is reported as a
 test issue, which is expected while the baseline stands in for the real
 summarizer.
+
+The baseline keeps a summary to three sentences, splitting a line that
+holds several. When a model writes more, the report says how many came back
+(`summarySentencesReturned`) and lists it under the bars. Within one
+response, a repeated quote is kept once: a small model under greedy decoding
+can loop on one line.
 
 ### What the metrics don't check
 

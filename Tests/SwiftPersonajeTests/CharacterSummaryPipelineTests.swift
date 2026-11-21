@@ -113,6 +113,23 @@ struct CharacterSummaryPipelineTests {
     #expect(report.unsupported.map(\.sentence) == ["Wren sails to France every summer."])
   }
 
+  struct UncitedSummarizer: CharacterSummarizing {
+    func summary(of member: String, from facts: [CharacterFact]) async throws -> CharacterSummary {
+      CharacterSummary(member: member, sentences: facts.map { SummarySentence(text: $0.statement) })
+    }
+  }
+
+  @Test("The pipeline requires citations: an uncited summary sentence is unsupported")
+  func pipelineRequiresCitations() async throws {
+    let pipeline = CharacterSummaryPipeline(
+      corpus: try await SummarySynthetic.corpus(),
+      chunker: SceneChunker(budget: Self.roomy, counter: WordCounter()),
+      extractor: StubExtractor(), summarizer: UncitedSummarizer())
+    let report = try #require(try await pipeline.run(for: "WREN").traceability)
+    #expect(!report.sentences.isEmpty)
+    #expect(report.sentences.allSatisfy { !$0.isSupported })
+  }
+
   @Test("With no verified facts, nothing is summarized")
   func noFactsNoSummary() async throws {
     let run = try await run("MAGGIE")  // only lamp scene 3, where the stub throws

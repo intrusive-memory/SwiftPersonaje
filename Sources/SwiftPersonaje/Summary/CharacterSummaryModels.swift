@@ -40,10 +40,15 @@ public struct CharacterSummary: Sendable, Hashable, Codable {
   /// The member's `character`, as CAST.md names them.
   public let member: String
   public let sentences: [SummarySentence]
+  /// How many sentences the summarizer wrote, when it wrote more than it was
+  /// asked for and ``sentences`` keeps only the first of them; `nil` when
+  /// nothing was cut.
+  public let returnedSentenceCount: Int?
 
-  public init(member: String, sentences: [SummarySentence]) {
+  public init(member: String, sentences: [SummarySentence], returnedSentenceCount: Int? = nil) {
     self.member = member
     self.sentences = sentences
+    self.returnedSentenceCount = returnedSentenceCount
   }
 
   /// The summary as prose.

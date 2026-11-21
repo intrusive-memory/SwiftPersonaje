@@ -81,6 +81,21 @@ struct SummaryTraceabilityTests {
     #expect(report.sentences[1].supportingFactIDs == ["f1"])
   }
 
+  @Test("With citations required, a sentence citing nothing is unsupported")
+  func uncitedSentenceWithCitationsRequired() {
+    let summary = CharacterSummary(
+      member: "WREN",
+      sentences: [
+        SummarySentence(text: "Wren counts things rather than imagining them."),
+        SummarySentence(text: "Wren noticed the lamp went dark.", factIDs: ["f1"]),
+      ])
+    let required = SummaryTraceability.check(summary, facts: Self.facts, requireCitations: true)
+    #expect(required.sentences.map(\.isSupported) == [false, true])
+    // Without the requirement the same uncited sentence is checked against every fact.
+    let lenient = SummaryTraceability.check(summary, facts: Self.facts)
+    #expect(lenient.sentences.map(\.isSupported) == [true, true])
+  }
+
   @Test("Plural and verb endings match their stems")
   func stems() {
     #expect(SummaryTraceability.words(in: "counts counted counting") == ["count", "count", "count"])

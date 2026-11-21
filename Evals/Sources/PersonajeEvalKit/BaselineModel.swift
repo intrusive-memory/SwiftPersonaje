@@ -80,10 +80,17 @@ public enum BaselineFormat {
       }
     }
 
-    let result = arrows + blocks.compactMap { block -> (statement: String, quote: String)? in
+    let parsed = arrows + blocks.compactMap { block -> (statement: String, quote: String)? in
       guard !block.statement.isEmpty, let quote = quote(in: block.lines, statement: block.statement)
       else { return nil }
       return (block.statement, quote)
+    }
+    // A small model under greedy decoding can loop, writing one quote over
+    // and over (Qwen3.5-9B wrote one 164 times in a single scene): each quote
+    // is kept once per response, with its first statement.
+    var seenQuotes = Set<String>()
+    let result = parsed.filter {
+      seenQuotes.insert(QuoteText.normalize($0.quote).lowercased()).inserted
     }
     if result.isEmpty && !sawNone { throw BaselineError.unparseable(response: firstLine(response)) }
     return result
@@ -131,14 +138,27 @@ public enum BaselineFormat {
   }
 
   /// The quote without a speaker in front of it, which is never part of
-  /// what was said: `Wren: "My father…"` → `"My father…"`, and a cue in
-  /// capitals, `WREN: My father…` → `My father…`. A mixed-case name is
-  /// dropped only before a quoted line, so a quote that itself holds a colon
-  /// (`Note: buy ink.`) is kept.
+  /// what was said:
+  ///
+  /// - `Wren: "My father…"` → `"My father…"` (a mixed-case name is dropped
+  ///   only before a quoted line, so `Note: buy ink.` is kept);
+  /// - a cue in capitals with a colon: `WREN: My father…`;
+  /// - a cue in capitals as a screenplay prints it, without a colon:
+  ///   `MITCH (to the bartender) Can I get…`, `MITCH... ordering one`, and
+  ///   `MITCH Used to be a guy…` (a capitalized word must follow, so the
+  ///   action line `MITCH notices LITTLE DONNIE` keeps its subject).
+  ///
+  /// A cue name is two or more capitals (`I` is never a cue). Dropping a
+  /// prefix only shortens the quote, so a quote that verified with it still
+  /// verifies without it.
   static func withoutSpeaker(_ line: String) -> String {
+    let name = "[A-Z][A-Z0-9'#-]+(?: [A-Z][A-Z0-9'#-]+){0,3}"
     for pattern in [
       "^[A-Za-z][A-Za-z .'-]{0,30}:\\s*(?=[\"\u{201C}\u{2018}'])",
-      "^[A-Z][A-Z0-9 .'#-]{0,30}(?:\\s*\\([^)]*\\))?:\\s+(?=\\S)",
+      "^\(name)(?:\\s*\\([^)]*\\))?:\\s+(?=\\S)",
+      "^\(name)\\s*\\([^)]*\\)\\s*",
+      "^\(name)\\s*(?:\\.\\.\\.|\u{2026})\\s*",
+      "^\(name)\\s+(?=[A-Z][a-z])",
     ] {
       if let prefix = line.range(of: pattern, options: .regularExpression) {
         return String(line[prefix.upperBound...])
@@ -344,12 +364,30 @@ public struct BaselineSummarizer: CharacterSummarizing {
       instructions: Self.instructions,
       prompt: "Character: \(member)\n\nFacts:\n\(lines.joined(separator: "\n"))",
       maximumResponseTokens: maximumResponseTokens)
-    return CharacterSummary(
-      member: member, sentences: try BaselineFormat.sentences(in: response))
+    return Self.limited(member: member, try BaselineFormat.sentences(in: response))
   }
 
   public static func overhead(counter: OnDeviceTokenCounter) async throws -> Int {
     try await counter.model.tokenCount(for: Instructions(instructions)) + 32
+  }
+
+  /// The most sentences a summary keeps: the instructions ask for two or
+  /// three.
+  public static let maximumSentences = 3
+
+  /// `lines` as at most ``maximumSentences`` sentences. A line holding
+  /// several sentences is split (NaturalLanguage's tokenizer), each piece
+  /// keeping the line's citations; the first three are kept, and the count
+  /// written is recorded when more came back.
+  public static func limited(member: String, _ lines: [SummarySentence]) -> CharacterSummary {
+    let sentences = lines.flatMap { line in
+      SummaryTraceability.sentences(in: line.text).map {
+        SummarySentence(text: $0, factIDs: line.factIDs)
+      }
+    }
+    return CharacterSummary(
+      member: member, sentences: Array(sentences.prefix(maximumSentences)),
+      returnedSentenceCount: sentences.count > maximumSentences ? sentences.count : nil)
   }
 }
 

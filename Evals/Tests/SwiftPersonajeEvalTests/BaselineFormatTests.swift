@@ -164,3 +164,75 @@ struct BrujaResponseTests {
     #expect(BrujaGenerator.withoutThinking("NONE") == "NONE")
   }
 }
+
+@Suite("Baseline fixes from the first model comparison (no model)")
+struct BaselineComparisonFixTests {
+
+  @Test("A quote repeated in one response is kept once, with its first statement")
+  func repeatedQuotesAreKeptOnce() throws {
+    // As Qwen3.5-9B looped under greedy decoding.
+    let looped = Array(repeating: "\"MITCH... ordering one for BILLY.\" -> Mitch orders for Billy.", count: 5)
+      .joined(separator: "\n")
+    let facts = try BaselineFormat.facts(
+      in: looped + "\n\"I count.\" -> Wren counts.\n\"i count.\" -> Wren counts again.")
+    #expect(facts.map(\.quote) == ["ordering one for BILLY.", "I count."])
+    #expect(facts.map(\.statement) == ["Mitch orders for Billy.", "Wren counts."])
+  }
+
+  @Test("A capitalized cue without a colon is dropped, as screenplays print it")
+  func cueWithoutColon() throws {
+    let facts = try BaselineFormat.facts(
+      in: """
+        FACT: Mitch orders a drink.
+        QUOTE: MITCH (to the bartender) Can I get another gin martini?
+        FACT: Mitch remembers a name.
+        QUOTE: MITCH Used to be a guy named Mac something.
+        FACT: Mitch notices Donnie.
+        QUOTE: MITCH notices LITTLE DONNIE WYNANT, standing just outside the room.
+        FACT: Mitch speaks off screen.
+        QUOTE: AUNT STANLEY (O.S.) Who's there?
+        FACT: Wren counts.
+        QUOTE: I Count.
+        """)
+    #expect(
+      facts.map(\.quote) == [
+        "Can I get another gin martini?",
+        "Used to be a guy named Mac something.",
+        // An action line keeps its subject: a lowercase word follows.
+        "MITCH notices LITTLE DONNIE WYNANT, standing just outside the room.",
+        "Who's there?",
+        // "I" is never a cue.
+        "I Count.",
+      ])
+  }
+
+  @Test("A quote that is only a cue and an ellipsis is dropped")
+  func cueOnlyQuote() throws {
+    let facts = try BaselineFormat.facts(
+      in: "\"TOBY ...\" -> Toby speaks.\n\"Hi, Toby.\" -> Someone greets Toby.")
+    #expect(facts.map(\.quote) == ["Hi, Toby."])
+  }
+
+  @Test("A summary keeps at most three sentences and records how many came back")
+  func summaryLength() {
+    // As Qwen3.5-9B answered: one line, several sentences, no citation.
+    let long = BaselineSummarizer.limited(
+      member: "MITCH",
+      [
+        SummarySentence(
+          text:
+            "Mitch is a photojournalist. He lives in San Francisco. He likes puzzles. He drinks martinis.",
+          factIDs: ["f1"])
+      ])
+    #expect(long.sentences.map(\.text) == [
+      "Mitch is a photojournalist.", "He lives in San Francisco.", "He likes puzzles.",
+    ])
+    #expect(long.sentences.allSatisfy { $0.factIDs == ["f1"] })
+    #expect(long.returnedSentenceCount == 4)
+
+    let short = BaselineSummarizer.limited(
+      member: "WREN", [SummarySentence(text: "Wren counts.", factIDs: ["f2"])])
+    #expect(short.sentences.count == 1)
+    #expect(short.returnedSentenceCount == nil)
+  }
+}

@@ -35,13 +35,7 @@ let package = Package(
     .package(url: "https://github.com/jpsim/Yams.git", .upToNextMajor(from: "6.2.2")),
     // Local MLX models, in-process, for comparison with Apple's models.
     .package(
-      url: "https://github.com/intrusive-memory/SwiftBruja.git", .upToNextMajor(from: "1.11.1")),
-    // SwiftBruja 1.11.1 admits mlx-swift-lm 3.33.0, whose generation enum
-    // added `.reasoning` and `.steering`; Bruja's switch doesn't handle them
-    // and fails to build. Held at the versions Bruja 1.11.1 resolves until
-    // Bruja is fixed.
-    .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.32.3"),
-    .package(url: "https://github.com/ml-explore/mlx-swift", exact: "0.32.3"),
+      url: "https://github.com/intrusive-memory/SwiftBruja.git", .upToNextMajor(from: "1.12.0")),
   ],
   targets: [
     .target(

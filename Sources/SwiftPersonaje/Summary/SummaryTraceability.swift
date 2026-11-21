@@ -34,8 +34,9 @@ public struct TraceabilityReport: Sendable, Equatable, Codable {
 /// 1. **Candidates.** A sentence that cites facts (``SummarySentence/factIDs``)
 ///    may be supported only by those facts. A cited ID that isn't among the
 ///    facts given is reported in ``SentenceTrace/unknownFactIDs`` and supports
-///    nothing. A sentence with no citations (a hand-written summary) may be
-///    supported by any fact.
+///    nothing. A sentence with no citations is unsupported when
+///    `requireCitations` is set (a summarizer asked to cite didn't), and
+///    otherwise may be supported by any fact (a hand-written summary).
 /// 2. **Content words.** Words are lowercased letters and digits, at least
 ///    three long, with common English function words and the member's own
 ///    name removed, and a plural or verb ending (`-s`, `-es`, `-ed`, `-ing`)
@@ -51,7 +52,8 @@ public struct TraceabilityReport: Sendable, Equatable, Codable {
 public enum SummaryTraceability {
 
   public static func check(
-    _ summary: CharacterSummary, facts: [CharacterFact], minimumSharedWords: Int = 2
+    _ summary: CharacterSummary, facts: [CharacterFact], minimumSharedWords: Int = 2,
+    requireCitations: Bool = false
   ) -> TraceabilityReport {
     let byID = Dictionary(facts.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     let nameWords = Set(words(in: summary.member))
@@ -61,6 +63,9 @@ public enum SummaryTraceability {
 
     let traces = summary.sentences.map { sentence -> SentenceTrace in
       let unknown = sentence.factIDs.filter { byID[$0] == nil }
+      if requireCitations && sentence.factIDs.isEmpty {
+        return SentenceTrace(sentence: sentence.text, supportingFactIDs: [], unknownFactIDs: [])
+      }
       let candidates =
         sentence.factIDs.isEmpty ? facts.map(\.id) : sentence.factIDs.filter { byID[$0] != nil }
       let sentenceWords = Set(words(in: sentence.text)).subtracting(nameWords)

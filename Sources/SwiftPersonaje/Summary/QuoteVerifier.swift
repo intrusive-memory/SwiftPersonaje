@@ -1,7 +1,7 @@
 import Foundation
 
 /// What ``QuoteVerifier`` decided about one quote.
-public enum QuoteVerdict: Sendable, Equatable {
+public enum QuoteVerdict: Sendable, Equatable, Codable {
   /// The quote is in the cited scene, inside the block starting at `line`
   /// (1-based).
   case verified(line: Int)

@@ -71,6 +71,13 @@ struct QuoteVerifierTests {
     #expect(try await verify("I don't   imagine.\n\nI count.", Self.lamp, "1").isVerified)
   }
 
+  @Test("Case is ignored: a name in capitals in action matches mixed case")
+  func caseIsIgnored() async throws {
+    #expect(try await verify("i count.", Self.lamp, "1").isVerified)
+    #expect(try await verify("Wren, 60's, oilskin coat", Self.lamp, "1").isVerified)
+    #expect(try await verify("letters addressed to Wren", Self.lamp, "3").isVerified)
+  }
+
   @Test("Quotation marks around the whole quote are ignored")
   func surroundingQuotationMarks() async throws {
     #expect(try await verify("\"I count.\"", Self.lamp, "1").isVerified)
@@ -109,7 +116,6 @@ struct QuoteVerifierTests {
       try await verify("The lamp has been dark for three nights", Self.lamp, "1")
         == .notInScene(foundIn: []))
     #expect(!(try await verify("I don't imagine, I count.", Self.lamp, "1").isVerified))
-    #expect(!(try await verify("i count.", Self.lamp, "1").isVerified))
   }
 
   @Test("A quote cited to the wrong scene is rejected, naming the scene that holds it")

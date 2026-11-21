@@ -31,8 +31,10 @@ public enum QuoteVerdict: Sendable, Equatable, Codable {
 /// - **Normalization** (``QuoteText/normalize(_:)``): every quotation mark
 ///   and apostrophe, single or double, curly or straight, becomes one mark; `--`, `—`, `–` and a spaced ` - ` become one dash; `…` becomes
 ///   `...`; Fountain emphasis (`*`, `_`) is dropped; every run of whitespace,
-///   line breaks included, becomes one space. Case is kept: a quote is
-///   verbatim or it is nothing.
+///   line breaks included, becomes one space.
+/// - **Case** is ignored. Screenplays print names in capitals in action
+///   (`MITCH goes back to his crossword`) and models write them in mixed
+///   case; the words, not their case, are the evidence.
 /// - **Parentheticals.** A dialogue block is matched twice: with its
 ///   parenthetical lines (`(beat)`) and without them. A quote may include one
 ///   or skip one.
@@ -66,7 +68,7 @@ public struct QuoteVerifier: Sendable {
   }
 
   public func verify(_ quote: String, at citation: SceneCitation) -> QuoteVerdict {
-    let needle = QuoteText.normalize(QuoteText.unwrap(quote))
+    let needle = QuoteText.normalize(QuoteText.unwrap(quote)).lowercased()
     guard !needle.isEmpty else { return .emptyQuote }
     guard episodes.contains(citation.episode) else { return .unknownEpisode }
     guard let scene = scenes[citation] else { return .unknownScene }
@@ -99,7 +101,7 @@ public struct QuoteVerifier: Sendable {
     for block in scene.blocks {
       let views = [block.body, block.spoken]
       for view in views {
-        let haystack = QuoteText.normalize(view.joined(separator: "\n"))
+        let haystack = QuoteText.normalize(view.joined(separator: "\n")).lowercased()
         if QuoteText.contains(haystack, needle) { return block.line }
       }
     }

@@ -1,0 +1,28 @@
+# Example fixture, CC0. It shows the format; it's invented, like the
+# lighthouse episodes beside it. Real fixtures are written by hand and live
+# with the private project they quote, never in this repository.
+#
+# facts: what a good run should find. Each quote is copied from the episode
+# and must sit inside one block of the cited scene (QuoteVerifier's rule);
+# the eval checks every gold quote and reports any that don't verify.
+# scene: the SN-1 scene number Personaje shows.
+facts:
+  - id: g1
+    statement: Wren notices the lamp has been dark for three nights.
+    quote: The lamp’s been dark three nights running
+    episode: 01-the-lamp.fountain
+    scene: "1"
+  - id: g2
+    statement: Wren counts things rather than imagining them.
+    quote: I don't imagine. I count.
+    episode: 01-the-lamp.fountain
+    scene: "1"
+  - id: g3
+    statement: Wren's father kept the lighthouse for forty years.
+    quote: My father kept this light for forty years.
+    episode: 02-the-letter.fountain
+    scene: "1"
+# acceptable: facts a run found that aren't above but are right. Copy them
+# here from a report's unmatchedFactIDs to stop them counting against
+# precision. Same shape as facts.
+acceptable: []

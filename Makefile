@@ -23,7 +23,7 @@ DERIVED_DATA = $(HOME)/Library/Developer/Xcode/DerivedData
 
 export GIT_LFS_SKIP_SMUDGE = 1
 
-.PHONY: build test release install clean resolve lint format help
+.PHONY: build test test-eval release install clean resolve lint format help
 
 build:
 	xcodebuild build -scheme $(SCHEME) \
@@ -34,6 +34,29 @@ build:
 
 test:
 	xcodebuild test -scheme $(SCHEME) \
+	  -destination $(DESTINATION) \
+	  $(XCODE_FLAGS) \
+	  CODE_SIGNING_ALLOWED=NO \
+	  $(ARCH)
+
+# Model-backed character-summary evaluation: the separate Evals/ package
+# (macOS 27, SwiftLlavero, Apple's Evaluations framework). Never run in CI.
+# Needs Apple Intelligence on this Mac. See Docs/build-and-test.md.
+#   PROJECT=<folder holding episodes/>   default: the CC0 example in Evals/Fixtures
+#   FIXTURES=<folder of CHARACTER/ dirs> default: $$PROJECT/evals/character-summaries
+#   MODEL=on-device | pcc | account:model  default: on-device
+# Reports go to .build/eval/.
+EVAL_DIR = Evals
+EVAL_SCHEME = PersonajeEvals
+
+test-eval:
+	@test "$$GITHUB_ACTIONS" != "true" || { echo "test-eval never runs in GitHub Actions."; exit 1; }
+	cd $(EVAL_DIR) && \
+	  TEST_RUNNER_PERSONAJE_EVAL_PROJECT="$(PROJECT)" \
+	  TEST_RUNNER_PERSONAJE_EVAL_FIXTURES="$(FIXTURES)" \
+	  TEST_RUNNER_PERSONAJE_EVAL_MODEL="$(or $(MODEL),on-device)" \
+	  TEST_RUNNER_PERSONAJE_EVAL_REPORT_DIR="$(CURDIR)/.build/eval" \
+	  xcodebuild test -scheme $(EVAL_SCHEME) \
 	  -destination $(DESTINATION) \
 	  $(XCODE_FLAGS) \
 	  CODE_SIGNING_ALLOWED=NO \
@@ -84,7 +107,7 @@ clean:
 # Rewrites Swift sources in place with swift-format. Run before committing;
 # never a CI gate.
 lint:
-	swift format -i -r Package.swift Sources Tests
+	swift format -i -r Package.swift Sources Tests Evals/Package.swift Evals/Sources Evals/Tests
 	@echo "Swift sources formatted."
 
 format: lint
@@ -93,6 +116,7 @@ help:
 	@echo "SwiftPersonaje — available targets:"
 	@echo "  build     - Build every target for macOS (arm64)"
 	@echo "  test      - Run the test suite on macOS (arm64)"
+	@echo "  test-eval - Model-backed character-summary evaluation (Evals/; never in CI)"
 	@echo "  release   - Release build of the personaje CLI, copied to $(BIN_DIR)/"
 	@echo "  install   - Debug build of the personaje CLI, copied to $(BIN_DIR)/"
 	@echo "  resolve   - Resolve package dependencies"

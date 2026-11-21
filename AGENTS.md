@@ -1,7 +1,7 @@
 ---
 type: doc
 title: SwiftPersonaje — Agent Instructions
-updated: 2026-10-22
+updated: 2026-11-21
 ---
 
 # AGENTS.md
@@ -25,3 +25,8 @@ One command per step from a name in the screenplay to a finished .dossier charac
 - **Tests use synthetic screenplays only.** This repo is public; never copy
   content from the private podcast repos (REQUIREMENTS §9).
 - Work on `development`; `main` takes releases.
+- **Model-backed evaluation** lives in `Evals/`, its own package (macOS 27,
+  SwiftLlavero, Apple's Evaluations framework), run by `make test-eval`.
+  Never in CI, never part of `make test`. Its real fixtures quote private
+  scripts and live with those projects; only the CC0 example is here. See
+  [Docs/build-and-test.md](Docs/build-and-test.md).

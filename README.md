@@ -92,8 +92,11 @@ the test fixture.
 ```
 make build    # xcodebuild, macOS arm64
 make test
+make test-eval  # model-backed character-summary evaluation; local only
 make install  # ./bin/personaje
 make help
 ```
+
+See [Docs/build-and-test.md](Docs/build-and-test.md).
 
 Part of the [intrusive-memory](https://github.com/intrusive-memory) ecosystem.

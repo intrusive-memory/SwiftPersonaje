@@ -1,0 +1,13 @@
+# Example, CC0. Plausible but wrong claims. A claim counts as made when any
+# of its phrases appears (case-insensitive) in a verified fact or the
+# summary. The pass bar is zero.
+claims:
+  - id: m1
+    claim: Wren is young.
+    phrases: ["young woman", "twenties", "20s", "teenager"]
+  - id: m2
+    claim: Otto is Wren's husband.
+    phrases: ["husband", "her husband", "married to otto"]
+  - id: m3
+    claim: Wren's father is still alive.
+    phrases: ["father is alive", "father still keeps", "father lives"]

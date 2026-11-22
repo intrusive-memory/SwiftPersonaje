@@ -23,7 +23,7 @@ DERIVED_DATA = $(HOME)/Library/Developer/Xcode/DerivedData
 
 export GIT_LFS_SKIP_SMUDGE = 1
 
-.PHONY: build test release install clean resolve lint format help
+.PHONY: build test test-eval release install clean resolve lint format help
 
 build:
 	xcodebuild build -scheme $(SCHEME) \
@@ -34,6 +34,42 @@ build:
 
 test:
 	xcodebuild test -scheme $(SCHEME) \
+	  -destination $(DESTINATION) \
+	  $(XCODE_FLAGS) \
+	  CODE_SIGNING_ALLOWED=NO \
+	  $(ARCH)
+
+# Model-backed character-summary evaluation: the separate Evals/ package
+# (macOS 27, SwiftLlavero, Apple's Evaluations framework). Never run in CI.
+# Needs Apple Intelligence on this Mac. See Docs/build-and-test.md.
+#   PROJECT=<folder holding episodes/>   default: the CC0 example in Evals/Fixtures
+#   FIXTURES=<folder of CHARACTER/ dirs> default: $$PROJECT/evals/character-summaries
+#   EPISODES=<glob over episodes/>       default: *.fountain
+#   MODEL=on-device | pcc | account:model | bruja:<MLX model id>  default: on-device
+#     bruja: runs a downloaded local MLX model through SwiftBruja, e.g.
+#     MODEL=bruja:mlx-community/Qwen3.5-9B-MLX-4bit
+# Reports go to .build/eval/.
+EVAL_DIR = Evals
+EVAL_SCHEME = PersonajeEvals
+# Where SwiftBruja finds the shared local models (from the environment if set).
+ACERVO_APP_GROUP_ID ?= group.intrusive-memory.models
+# The test runner can't read the App Group container, so a bruja: model is
+# cloned (APFS, no extra space) into EVAL_MODELS_DIR and read from there.
+EVAL_MODELS_DIR = $(CURDIR)/.build/eval-models
+BRUJA_MODEL = $(patsubst bruja:%,%,$(filter bruja:%,$(MODEL)))
+
+test-eval:
+	@test "$$GITHUB_ACTIONS" != "true" || { echo "test-eval never runs in GitHub Actions."; exit 1; }
+	$(if $(BRUJA_MODEL),sh $(EVAL_DIR)/Scripts/stage-bruja-model.sh "$(BRUJA_MODEL)" "$(EVAL_MODELS_DIR)" "$(ACERVO_APP_GROUP_ID)")
+	cd $(EVAL_DIR) && \
+	  $(if $(BRUJA_MODEL),TEST_RUNNER_ACERVO_MODELS_DIR="$(EVAL_MODELS_DIR)") \
+	  TEST_RUNNER_PERSONAJE_EVAL_PROJECT="$(PROJECT)" \
+	  TEST_RUNNER_PERSONAJE_EVAL_FIXTURES="$(FIXTURES)" \
+	  TEST_RUNNER_PERSONAJE_EVAL_EPISODES="$(EPISODES)" \
+	  TEST_RUNNER_PERSONAJE_EVAL_MODEL="$(or $(MODEL),on-device)" \
+	  TEST_RUNNER_PERSONAJE_EVAL_REPORT_DIR="$(CURDIR)/.build/eval" \
+	  TEST_RUNNER_ACERVO_APP_GROUP_ID="$(ACERVO_APP_GROUP_ID)" \
+	  xcodebuild test -scheme $(EVAL_SCHEME) \
 	  -destination $(DESTINATION) \
 	  $(XCODE_FLAGS) \
 	  CODE_SIGNING_ALLOWED=NO \
@@ -84,7 +120,7 @@ clean:
 # Rewrites Swift sources in place with swift-format. Run before committing;
 # never a CI gate.
 lint:
-	swift format -i -r Package.swift Sources Tests
+	swift format -i -r Package.swift Sources Tests Evals/Package.swift Evals/Sources Evals/Tests
 	@echo "Swift sources formatted."
 
 format: lint
@@ -93,6 +129,7 @@ help:
 	@echo "SwiftPersonaje — available targets:"
 	@echo "  build     - Build every target for macOS (arm64)"
 	@echo "  test      - Run the test suite on macOS (arm64)"
+	@echo "  test-eval - Model-backed character-summary evaluation (Evals/; never in CI)"
 	@echo "  release   - Release build of the personaje CLI, copied to $(BIN_DIR)/"
 	@echo "  install   - Debug build of the personaje CLI, copied to $(BIN_DIR)/"
 	@echo "  resolve   - Resolve package dependencies"
